@@ -9,68 +9,73 @@ import SwiftUI
 import RealityKit
 import RealityKitContent
 
+// MARK: - Navigation
+
+enum Route: Hashable {
+    case punnett
+    case place
+}
+
+// MARK: - Root
+
 struct ContentView: View {
+    @State private var path = NavigationPath()
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Model3D(named: "Scene", bundle: realityKitContentBundle)
-                    .frame(maxHeight: 300)
-
-                Text("Hello, world!")
-
-                NavigationLink("Open Punnett Square") {
-                    PunnettSquareTabs()
-                }
-                .buttonStyle(.borderedProminent)
+        NavigationStack(path: $path) {
+            StartView {
+                path.append(Route.punnett)
             }
-            .padding()
-            .navigationTitle("Main")
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .punnett:
+                    PunnettSquareView {
+                        path.append(Route.place)
+                    }
+                case .place:
+                    PlaceView()
+                }
+            }
+            .navigationTitle("Start")
         }
     }
 }
 
-// MARK: - Tabs
+// MARK: - Step 1: Start
 
-struct PunnettSquareTabs: View {
+struct StartView: View {
+    var onStart: () -> Void
+
     var body: some View {
-        TabView {
-            PunnettSquareView()
-                .tabItem {
-                    Label("Punnett", systemImage: "square.grid.2x2")
-                }
+        VStack(spacing: 24) {
+            Model3D(named: "Scene", bundle: realityKitContentBundle)
+                .frame(maxHeight: 300)
 
-            HelloTabView()
-                .tabItem {
-                    Label("Hello", systemImage: "textformat")
-                }
-        }
-        .navigationTitle("Punnett Window")
-    }
-}
-
-struct HelloTabView: View {
-    var body: some View {
-        VStack(spacing: 16) {
             Text("Hello")
                 .font(.largeTitle).bold()
-            Text("Second tab content.")
-                .foregroundStyle(.secondary)
+
+            Button("Start") { onStart() }
+                .buttonStyle(.borderedProminent)
         }
         .padding()
     }
 }
 
-// MARK: - Punnett Square
+// MARK: - Step 2: Punnett
 
 struct PunnettSquareView: View {
+    // Inputs
     @State private var parentA: String = "Aa"
     @State private var parentB: String = "Aa"
 
+    // Derived
     private var allelesA: [String] { splitAlleles(parentA) }
     private var allelesB: [String] { splitAlleles(parentB) }
     private var grid: [[String]] { makeGrid(allelesA, allelesB) }
     private var summary: [(String, Int, Double)] { genotypeSummary(grid) }
     private var phenotypeSummaryText: String { phenotypeSummary(summary) }
+
+    var onContinue: () -> Void
 
     var body: some View {
         ScrollView {
@@ -83,10 +88,13 @@ struct PunnettSquareView: View {
                         TextField("Parent A (e.g. Aa)", text: $parentA)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.characters)
+                            .keyboardType(.asciiCapable)
                             .autocorrectionDisabled()
+
                         TextField("Parent B (e.g. Aa)", text: $parentB)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.characters)
+                            .keyboardType(.asciiCapable)
                             .autocorrectionDisabled()
                     }
                     Text("Enter two alleles per parent, e.g. AA, Aa, or aa.")
@@ -127,8 +135,35 @@ struct PunnettSquareView: View {
                     }
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.top)
         }
+        .navigationTitle("Punnett")
+        // Bottom-centered Continue button, same look as Start
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Button("Continue") { onContinue() }
+                    .buttonStyle(.borderedProminent)
+                Spacer()
+            }
+            .padding(.vertical, 12)   // no background
+        }
+    }
+}
+
+// MARK: - Step 3: Place
+
+struct PlaceView: View {
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("Place")
+                .font(.largeTitle).bold()
+            Text("Third window.")
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .navigationTitle("Place")
     }
 }
 
@@ -228,8 +263,7 @@ private func phenotypeSummary(_ items: [(String, Int, Double)]) -> String {
             let base = String(first).uppercased()
             let hasUpper = g.contains { String($0) == base }
             let hasLower = g.contains { String($0) == base.lowercased() }
-            if hasUpper { dom += c }
-            else if hasLower { rec += c }
+            if hasUpper { dom += c } else if hasLower { rec += c }
         }
     }
     return "Dominant: \(dom)/4, Recessive: \(rec)/4"
@@ -242,4 +276,3 @@ private func formatPct(_ p: Double) -> String {
 #Preview(windowStyle: .automatic) {
     ContentView()
 }
-
