@@ -4,6 +4,6 @@ import SwiftUI
 struct EugenePlacementApp: App {
     var body: some Scene {
         WindowGroup { ContentView() }
-        ImmersiveSpace(id: "PlacementSpace") { ContentView.HighlightTablesWithGazeView() }
+        ImmersiveSpace(id: "PlacementSpace") { ContentView.HighlightTablesWithGazeAndRotationView() }
     }
 }
