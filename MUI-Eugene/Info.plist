@@ -13,6 +13,6 @@
 	</dict>
 
 	<key>NSWorldSensingUsageDescription</key>
-	<string>We detect flat surfaces to place virtual objects.</string>
+	<string>We detect flat surfaces to highlight them.</string>
 </dict>
 </plist>

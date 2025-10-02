@@ -5,84 +5,60 @@ import RealityKitContent
 
 struct ContentView: View {
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
-
     var body: some View {
-        VStack {
-            Text("Opening immersive placement…")
-        }
-        .task {
-            // Open immersive space automatically
-            _ = await openImmersiveSpace(id: "PlacementSpace")
-        }
+        Text("Opening immersive…")
+            .task { _ = await openImmersiveSpace(id: "PlacementSpace") }
     }
 }
 
-// MARK: - Immersive placement view
 extension ContentView {
-    struct AutoPlaceSphereView: View {
-        // ARKit
+    struct HighlightAllPlanesView: View {
         private let session = ARKitSession()
         private let planes  = PlaneDetectionProvider(alignments: [.horizontal])
 
-        // Scene state
-        @State private var anchor = AnchorEntity()
-        @State private var sphere: ModelEntity?
-        @State private var debugPlane: ModelEntity?
-        @State private var placed = false
-
-        private let r: Float = 0.06
+        @State private var root = Entity()
+        @State private var highlights: [UUID: AnchorEntity] = [:] // planeID -> anchor
 
         var body: some View {
             RealityView { content in
-                content.add(anchor)
-
-                // Debug plane
-                let dbg = ModelEntity(
-                    mesh: .generatePlane(width: 0.6, depth: 0.6),
-                    materials: [SimpleMaterial(color: .green.withAlphaComponent(0.25), isMetallic: false)]
-                )
-                dbg.isEnabled = false
-                anchor.addChild(dbg)
-                debugPlane = dbg
-
-                // Sphere, hidden until plane is detected
-                let ball = ModelEntity(
-                    mesh: .generateSphere(radius: r),
-                    materials: [SimpleMaterial(color: .blue, isMetallic: false)]
-                )
-                ball.position = [0, r, 0]
-                ball.isEnabled = false
-                anchor.addChild(ball)
-                sphere = ball
+                content.add(root)
             }
             .task {
-                // 1) Supported?
                 guard PlaneDetectionProvider.isSupported else { return }
-
-                // 2) Ask for permission
                 let auth = await session.requestAuthorization(for: [.worldSensing])
                 guard auth[.worldSensing] == .allowed else { return }
-
-                // 3) Run provider
                 try? await session.run([planes])
 
-                // 4) Handle updates
-                for await update in planes.anchorUpdates {
-                    switch update.event {
-                    case .added where !placed:
-                        let pose = update.anchor.originFromAnchorTransform
+                for await up in planes.anchorUpdates {
+                    let pose = up.anchor.originFromAnchorTransform
+                    let id: UUID = up.anchor.id    // <-- use .id
+
+                    switch up.event {
+                    case .added:
                         await MainActor.run {
+                            let anchor = AnchorEntity()
                             anchor.setTransformMatrix(pose, relativeTo: nil)
-                            debugPlane?.isEnabled = true
-                            sphere?.isEnabled = true
-                            placed = true
+
+                            let hl = ModelEntity(
+                                mesh: .generatePlane(width: 0.6, depth: 0.6),
+                                materials: [SimpleMaterial(color: .green.withAlphaComponent(0.25), isMetallic: false)]
+                            )
+                            hl.name = "highlight"
+                            anchor.addChild(hl)
+
+                            root.addChild(anchor)
+                            highlights[id] = anchor
                         }
-                    case .updated where placed:
-                        let pose = update.anchor.originFromAnchorTransform
-                        await MainActor.run {
-                            anchor.setTransformMatrix(pose, relativeTo: nil)
+
+                    case .updated:
+                        if let anchor = highlights[id] {
+                            await MainActor.run {
+                                anchor.setTransformMatrix(pose, relativeTo: nil)
+                            }
                         }
-                    default:
+
+                    case .removed:
+                        // Keep last known pose. Do not remove.
                         break
                     }
                 }
