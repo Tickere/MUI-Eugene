@@ -1,17 +1,16 @@
-//
-//  MUI_EugeneApp.swift
-//  MUI-Eugene
-//
-//  Created by Pablo Blumer on 01.10.2025.
-//
-
 import SwiftUI
 
 @main
-struct MUI_EugeneApp: App {
+struct EugenePlacementApp: App {
     var body: some Scene {
+        // Small window just to trigger immersive space
         WindowGroup {
             ContentView()
+        }
+
+        // Immersive space where we detect planes and place the sphere
+        ImmersiveSpace(id: "PlacementSpace") {
+            ContentView.AutoPlaceSphereView()
         }
     }
 }

@@ -11,5 +11,8 @@
 		<key>UISceneConfigurations</key>
 		<dict/>
 	</dict>
+
+	<key>NSWorldSensingUsageDescription</key>
+	<string>We detect flat surfaces to place virtual objects.</string>
 </dict>
 </plist>
