@@ -12,7 +12,7 @@ struct ContentView: View {
 }
 
 extension ContentView {
-    struct HighlightTablesWithGazeRotateNudgeView: View {
+    struct HighlightPlaceConfirmView: View {
         // Providers
         private let session = ARKitSession()
         private let planes  = PlaneDetectionProvider(alignments: [.horizontal])
@@ -20,27 +20,24 @@ extension ContentView {
 
         // Scene
         @State private var root = Entity()
-
-        struct PlaneItem {
-            var anchor: AnchorEntity
-            var quad: ModelEntity
-            var locked: Bool
-        }
+        struct PlaneItem { var anchor: AnchorEntity; var quad: ModelEntity; var locked: Bool }
         @State private var items: [UUID: PlaneItem] = [:]
         @State private var activeID: UUID?
 
-        // Materials
-        private let baseMat  = SimpleMaterial(color: .green.withAlphaComponent(0.0), isMetallic: false) // invisible
+        // Visuals
+        private let baseMat  = SimpleMaterial(color: .green.withAlphaComponent(0.0), isMetallic: false) // idle = hidden
         private let focusMat = SimpleMaterial(color: .blue.withAlphaComponent(0.35),  isMetallic: false)
 
-        // De-dup
+        // Flow
+        @State private var confirmed = false
         private let mergeDistance: Float = 0.30
+        private let sphereRadius: Float = 0.06
 
-        // Rotation
+        // Rotate
         @State private var startPoseRot: simd_float4x4?
         @State private var startAngleRad: Float?
 
-        // Nudge
+        // Nudge (stable, absolute-hit incremental)
         @State private var isDragging = false
         @State private var startPoseMove: simd_float4x4?
         @State private var lastHitLocal: SIMD3<Float>?
@@ -48,93 +45,99 @@ extension ContentView {
         private let quant: Float     = 0.01
 
         var body: some View {
-            RealityView { content in
-                content.add(root)
-            }
-            .task {
-                guard PlaneDetectionProvider.isSupported else { return }
-                let auth = await session.requestAuthorization(for: [.worldSensing])
-                guard auth[.worldSensing] == .allowed else { return }
-                try? await session.run([planes, world])
+            ZStack {
+                RealityView { content in
+                    content.add(root)
+                }
+                .task {
+                    guard PlaneDetectionProvider.isSupported else { return }
+                    let auth = await session.requestAuthorization(for: [.worldSensing])
+                    guard auth[.worldSensing] == .allowed else { return }
+                    try? await session.run([planes, world])
 
-                // Plane updates (skip locked)
-                Task {
-                    for await up in planes.anchorUpdates {
-                        let pid = up.anchor.id
-                        let pose = up.anchor.originFromAnchorTransform
+                    // Plane updates (skip when confirmed; skip locked)
+                    Task {
+                        for await up in planes.anchorUpdates {
+                            if confirmed { continue }
+                            let pid  = up.anchor.id
+                            let pose = up.anchor.originFromAnchorTransform
+                            switch up.event {
+                            case .added, .updated:
+                                guard up.anchor.surfaceClassification == .table else { continue }
+                                if let item = items[pid], item.locked { continue }
 
-                        switch up.event {
-                        case .added, .updated:
-                            guard up.anchor.surfaceClassification == .table else { continue }
-
-                            if let item = items[pid], item.locked { continue }
-
-                            let newPos = centerXZ(of: pose)
-                            if let (existingID, existing) = nearestItem(to: newPos, within: mergeDistance) {
-                                await MainActor.run {
-                                    if !existing.locked { existing.anchor.setTransformMatrix(pose, relativeTo: nil) }
-                                    items[pid] = existing
-                                    if existingID != pid { items.removeValue(forKey: existingID) }
+                                let center = centerXZ(of: pose)
+                                if let (existingID, existing) = nearestItem(to: center, within: mergeDistance) {
+                                    await MainActor.run {
+                                        if !existing.locked { existing.anchor.setTransformMatrix(pose, relativeTo: nil) }
+                                        items[pid] = existing
+                                        if existingID != pid { items.removeValue(forKey: existingID) }
+                                    }
+                                } else if let current = items[pid] {
+                                    await MainActor.run {
+                                        if !current.locked { current.anchor.setTransformMatrix(pose, relativeTo: nil) }
+                                    }
+                                } else {
+                                    await MainActor.run {
+                                        let a = AnchorEntity(); a.setTransformMatrix(pose, relativeTo: nil)
+                                        let quad = ModelEntity(
+                                            mesh: .generatePlane(width: 0.8, depth: 0.8),
+                                            materials: [baseMat]
+                                        )
+                                        quad.name = "tableHighlight"
+                                        quad.isEnabled = false
+                                        quad.generateCollisionShapes(recursive: true)
+                                        quad.components.set(InputTargetComponent())
+                                        a.addChild(quad); root.addChild(a)
+                                        items[pid] = PlaneItem(anchor: a, quad: quad, locked: false)
+                                    }
                                 }
-                            } else if let current = items[pid] {
-                                await MainActor.run {
-                                    if !current.locked { current.anchor.setTransformMatrix(pose, relativeTo: nil) }
+                            case .removed: break
+                            }
+                        }
+                    }
+
+                    // Gaze focus (disabled after confirm)
+                    Task {
+                        while !confirmed {
+                            if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
+                                let m = dev.originFromAnchorTransform
+                                let camPos = SIMD3<Float>(m.columns.3.x, m.columns.3.y, m.columns.3.z)
+                                let camFwd = -SIMD3<Float>(m.columns.2.x, m.columns.2.y, m.columns.2.z)
+
+                                var best: (id: UUID, dot: Float)? = nil
+                                for (id, item) in items {
+                                    let t  = item.anchor.transformMatrix(relativeTo: nil)
+                                    let p  = SIMD3<Float>(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+                                    let v  = simd_normalize(p - camPos)
+                                    let d  = simd_dot(camFwd, v)
+                                    if best == nil || d > best!.dot { best = (id, d) }
                                 }
-                            } else {
                                 await MainActor.run {
-                                    let a = AnchorEntity()
-                                    a.setTransformMatrix(pose, relativeTo: nil)
-
-                                    let quad = ModelEntity(
-                                        mesh: .generatePlane(width: 0.8, depth: 0.8),
-                                        materials: [baseMat]
-                                    )
-                                    quad.name = "tableHighlight"
-                                    quad.isEnabled = false                               // hidden by default
-                                    quad.generateCollisionShapes(recursive: true)
-                                    quad.components.set(InputTargetComponent())
-
-                                    a.addChild(quad)
-                                    root.addChild(a)
-                                    items[pid] = PlaneItem(anchor: a, quad: quad, locked: false)
+                                    if let b = best, b.dot >= 0.95 { setActive(b.id) } else { clearActive() }
                                 }
                             }
-                        case .removed:
-                            break
+                            try? await Task.sleep(nanoseconds: 33_000_000)
                         }
                     }
                 }
-
-                // Gaze focus
-                Task {
-                    while true {
-                        if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
-                            let m = dev.originFromAnchorTransform
-                            let camPos = SIMD3<Float>(m.columns.3.x, m.columns.3.y, m.columns.3.z)
-                            let camFwd = -SIMD3<Float>(m.columns.2.x, m.columns.2.y, m.columns.2.z)
-
-                            var best: (id: UUID, dot: Float)? = nil
-                            for (id, item) in items {
-                                let t  = item.anchor.transformMatrix(relativeTo: nil)
-                                let p  = SIMD3<Float>(t.columns.3.x, t.columns.3.y, t.columns.3.z)
-                                let v  = simd_normalize(p - camPos)
-                                let d  = simd_dot(camFwd, v)
-                                if best == nil || d > best!.dot { best = (id, d) }
-                            }
-                            await MainActor.run {
-                                if let b = best, b.dot >= 0.95 { setActive(b.id) } else { clearActive() }
-                            }
-                        }
-                        try? await Task.sleep(nanoseconds: 33_000_000)
-                    }
+                // Standard SwiftUI confirm button overlay
+                if activeID != nil && !confirmed {
+                    Button("Confirm placement") { confirmPlacement() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 24)
                 }
             }
-            // Rotate focused quad
+            // Two-finger rotate focused quad
             .gesture(
                 RotationGesture()
                     .targetedToAnyEntity()
                     .onChanged { value in
-                        guard let id = activeID, var item = items[id], value.entity == item.quad else { return }
+                        guard !confirmed,
+                              let id = activeID, var item = items[id], value.entity == item.quad else { return }
                         if startPoseRot == nil || startAngleRad == nil {
                             startPoseRot  = item.anchor.transformMatrix(relativeTo: nil)
                             startAngleRad = Float(value.gestureValue.radians)
@@ -145,19 +148,20 @@ extension ContentView {
                         items[id] = item
                     }
                     .onEnded { _ in
+                        guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
                         startPoseRot = nil; startAngleRad = nil
                     }
             )
-            // Nudge focused quad
+            // One-finger drag to nudge focused quad (stable)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .targetedToAnyEntity()
                     .onChanged { value in
-                        guard let id = activeID, var item = items[id], value.entity == item.quad else { return }
+                        guard !confirmed,
+                              let id = activeID, var item = items[id], value.entity == item.quad else { return }
 
                         let hitLocal = value.convert(value.location3D, from: .local, to: item.anchor)
-
                         if !isDragging {
                             isDragging = true
                             startPoseMove = item.anchor.transformMatrix(relativeTo: nil)
@@ -175,49 +179,58 @@ extension ContentView {
 
                         let moved = startPose * translation(dx: dx, dy: 0, dz: dz)
                         item.anchor.setTransformMatrix(moved, relativeTo: nil)
+                        items[id] = item
+
                         startPoseMove = moved
                         last.x += dx; last.z += dz
                         lastHitLocal = last
-                        items[id] = item
                     }
                     .onEnded { _ in
+                        guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
-                        isDragging = false
-                        startPoseMove = nil
-                        lastHitLocal  = nil
+                        isDragging = false; startPoseMove = nil; lastHitLocal = nil
                     }
             )
+        }
+
+        // MARK: - Confirm
+        private func confirmPlacement() {
+            guard let id = activeID, let item = items[id] else { return }
+            confirmed = true
+            // Hide all quads
+            for (_, v) in items { v.quad.isEnabled = false }
+            // Spawn a sphere on the selected surface
+            let sphere = ModelEntity(
+                mesh: .generateSphere(radius: sphereRadius),
+                materials: [SimpleMaterial(color: .white, isMetallic: false)]
+            )
+            sphere.position = [0, sphereRadius, 0]
+            item.anchor.addChild(sphere)
         }
 
         // MARK: - Focus visibility
         private func setActive(_ id: UUID) {
             if activeID == id { return }
-            if let prev = activeID, let p = items[prev] {
-                p.quad.model?.materials = [baseMat]
-                p.quad.isEnabled = false            // hide previous
-            }
+            if let prev = activeID, let p = items[prev] { p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false }
             if let p = items[id] {
                 p.quad.model?.materials = [focusMat]
-                p.quad.isEnabled = true             // show focused
+                p.quad.isEnabled = true
                 activeID = id
             }
         }
         private func clearActive() {
             guard let prev = activeID, let p = items[prev] else { return }
-            p.quad.model?.materials = [baseMat]
-            p.quad.isEnabled = false                // hide when no focus
+            p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false
             activeID = nil
         }
 
         // MARK: - Helpers
         private func centerXZ(of m: simd_float4x4) -> SIMD2<Float> { .init(m.columns.3.x, m.columns.3.z) }
         private func nearestItem(to p: SIMD2<Float>, within thresh: Float) -> (UUID, PlaneItem)? {
-            var best: (UUID, PlaneItem)?
-            var bestDist = thresh
+            var best: (UUID, PlaneItem)?; var bestDist = thresh
             for (id, item) in items {
                 let t = item.anchor.transformMatrix(relativeTo: nil)
-                let q = centerXZ(of: t)
-                let d = simd_length(p - q)
+                let q = centerXZ(of: t); let d = simd_length(p - q)
                 if d < bestDist { best = (id, item); bestDist = d }
             }
             return best
