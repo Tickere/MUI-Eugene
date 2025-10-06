@@ -5,10 +5,11 @@ import simd
 struct ContentView: View {
     // Dark, pleasant colors
     private let baseColors: [UIColor] = [
-        UIColor(red: 0.55, green: 0.12, blue: 0.12, alpha: 1.0),
-        UIColor(red: 0.12, green: 0.50, blue: 0.18, alpha: 1.0),
-        UIColor(red: 0.12, green: 0.22, blue: 0.60, alpha: 1.0)
+        UIColor(red: 0.55, green: 0.12, blue: 0.12, alpha: 1.0), // dark red
+        UIColor(red: 0.12, green: 0.50, blue: 0.18, alpha: 1.0), // dark green
+        UIColor(red: 0.12, green: 0.22, blue: 0.60, alpha: 1.0)  // dark blue
     ]
+    private let colorNames = ["Dark Red", "Dark Green", "Dark Blue"]
 
     @State private var root = Entity()
     @State private var camera: PerspectiveCamera?
@@ -25,8 +26,13 @@ struct ContentView: View {
     @State private var originalTransforms: [String: simd_float4x4] = [:]
     @State private var returnTasks: [String: Task<Void, Never>] = [:]
 
+    // Info panel attachment
+    @State private var infoPanel: Entity?
+    @State private var infoText: String = ""
+    @State private var infoTargetName: String?
+
     var body: some View {
-        RealityView { content in
+        RealityView { content, attachments in
             content.add(root)
 
             // Camera
@@ -36,7 +42,7 @@ struct ContentView: View {
             content.add(cam)
             camera = cam
 
-            // Three unlit spheres at z = 0
+            // Spheres
             let r: Float = 0.075, y: Float = r
             let positions: [SIMD3<Float>] = [
                 [-0.20, y, 0.0],
@@ -44,7 +50,6 @@ struct ContentView: View {
                 [ 0.20, y, 0.0]
             ]
             let mesh = MeshResource.generateSphere(radius: r)
-
             for (i, p) in positions.enumerated() {
                 let mat = UnlitMaterial(color: baseColors[i])
                 let sphere = ModelEntity(mesh: mesh, materials: [mat])
@@ -53,9 +58,24 @@ struct ContentView: View {
                 sphere.generateCollisionShapes(recursive: true)
                 sphere.components.set(InputTargetComponent())
                 root.addChild(sphere)
-
-                // Record original world transform
                 originalTransforms[sphere.name] = sphere.transformMatrix(relativeTo: nil)
+            }
+
+            // Create info panel attachment once
+            if infoPanel == nil, let e = attachments.entity(for: "infoPanel") {
+                e.isEnabled = false
+                e.components.set(BillboardComponent()) // face viewer
+                root.addChild(e)
+                infoPanel = e
+            }
+        } attachments: {
+            Attachment(id: "infoPanel") {
+                Text(infoText)
+                    .font(.system(.title3, weight: .semibold))
+                    .multilineTextAlignment(.leading)
+                    .padding(12)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .padding(2)
             }
         }
         // Drag: move in world XYZ
@@ -90,6 +110,9 @@ struct ContentView: View {
 
                     dragStartPose = moved
                     dragLastWorld = SIMD3<Float>(last.x + dx, last.y + dy, last.z + dz)
+
+                    // Keep panel above the dragged sphere
+                    if infoTargetName == model.name { placeInfoPanel(above: model) }
                 }
                 .onEnded { value in
                     guard let model = value.entity as? ModelEntity,
@@ -128,6 +151,8 @@ struct ContentView: View {
                     var newPos = startCam + dir * newDist
                     newPos.y = startPos.y
                     model.position = newPos
+
+                    if infoTargetName == model.name { placeInfoPanel(above: model) }
                 }
                 .onEnded { value in
                     guard let model = value.entity as? ModelEntity,
@@ -137,10 +162,56 @@ struct ContentView: View {
                     scheduleReturn(for: model)
                 }
         )
+        // Tap: toggle info panel for the tapped sphere
+        .simultaneousGesture(
+            SpatialTapGesture().targetedToAnyEntity()
+                .onEnded { value in
+                    guard let model = value.entity as? ModelEntity,
+                          model.name.hasPrefix("sphere_") else { return }
+                    if infoTargetName == model.name {
+                        // toggle off
+                        infoTargetName = nil
+                        infoPanel?.isEnabled = false
+                        return
+                    }
+                    // update content and show
+                    infoTargetName = model.name
+                    infoText = makeInfoText(for: model)
+                    placeInfoPanel(above: model)
+                    infoPanel?.isEnabled = true
+                }
+        )
         .frame(minWidth: 600, minHeight: 400)
     }
 
-    // Return scheduler
+    // MARK: - Info content
+    private func makeInfoText(for model: ModelEntity) -> String {
+        let idx = Int(model.name.split(separator: "_").last ?? "0") ?? 0
+        let colorName = colorNames[min(max(idx, 0), colorNames.count - 1)]
+        let p = model.position(relativeTo: nil)
+        let radiusCm = 7.5 // matches r: 0.075 m
+        var distanceStr = "n/a"
+        if let cam = camera {
+            let d = simd_length(p - cam.position(relativeTo: nil))
+            distanceStr = String(format: "%.2f m", d)
+        }
+        let posStr = String(format: "x: %.2f  y: %.2f  z: %.2f", p.x, p.y, p.z)
+        return """
+        Sphere \(idx + 1)
+        Color: \(colorName)
+        Radius: \(radiusCm) cm
+        Position: \(posStr)
+        Distance to camera: \(distanceStr)
+        """
+    }
+
+    private func placeInfoPanel(above model: ModelEntity) {
+        guard let panel = infoPanel else { return }
+        panel.setParent(model)
+        panel.position = [0, 0.18, 0] // 18 cm above the sphere
+    }
+
+    // MARK: - Return scheduler
     private func scheduleReturn(for model: ModelEntity) {
         guard let target = originalTransforms[model.name] else { return }
         cancelReturn(for: model.name)
@@ -149,6 +220,7 @@ struct ContentView: View {
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 model.move(to: Transform(matrix: target), relativeTo: nil, duration: 0.5, timingFunction: .easeInOut)
+                if infoTargetName == model.name { placeInfoPanel(above: model) }
             }
         }
     }
