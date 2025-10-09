@@ -1,14 +1,29 @@
 import SwiftUI
 import RealityKit
+import RealityKitContent
 import ARKit
 import simd
 import QuartzCore
 import UIKit
 
+// Marker for draggable roots
+struct Draggable: Component {}
+
+private func draggableRoot(from e: Entity) -> Entity? {
+    var cur: Entity? = e
+    var last: Entity?
+    while let c = cur {
+        if c.components.has(Draggable.self) { last = c }
+        cur = c.parent
+    }
+    return last
+}
+
 struct ContentView: View {
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     var body: some View {
-        Text("Opening immersive…").task { _ = await openImmersiveSpace(id: "PlacementSpace") }
+        Text("Opening immersive…")
+            .task { _ = await openImmersiveSpace(id: "PlacementSpace") }
     }
 }
 
@@ -19,53 +34,52 @@ extension ContentView {
         private let planes  = PlaneDetectionProvider(alignments: [.horizontal])
         private let world   = WorldTrackingProvider()
 
-        // Scene
+        // Scene + planes
         @State private var root = Entity()
         struct PlaneItem { var anchor: AnchorEntity; var quad: ModelEntity; var locked: Bool }
         @State private var items: [UUID: PlaneItem] = [:]
         @State private var activeID: UUID?
+        @State private var confirmed = false
 
-        // Surface visuals
+        // Materials
         private let baseMat  = SimpleMaterial(color: .green.withAlphaComponent(0.0), isMetallic: false)
         private let focusMat = SimpleMaterial(color: .blue.withAlphaComponent(0.35),  isMetallic: false)
 
-        // Flow
-        @State private var confirmed = false
-        private let mergeDistance: Float = 0.30
-
         // Plane manipulation
+        @State private var isManipulatingPlane = false
+        @State private var isDraggingPlane = false
         @State private var startPoseRot: simd_float4x4?
         @State private var startAngleRad: Float?
-        @State private var isDraggingPlane = false
         @State private var startPoseMove: simd_float4x4?
         @State private var lastHitLocal: SIMD3<Float>?
         private let stepClamp: Float = 0.03
         private let quant: Float     = 0.01
-        @State private var isManipulatingPlane = false
+        private let mergeDistance: Float = 0.30
 
-        // Confirm UI
+        // UI attachments
         @State private var confirmUI: Entity?
+        @State private var infoPanel: Entity?
+        @State private var machineUI: Entity?   // machine_ui_anchor UI
+        @State private var infoText = ""
+        @State private var infoTargetName: String?
 
-        // Spheres after confirm
-        private let baseColors: [UIColor] = [
-            UIColor(red: 0.55, green: 0.12, blue: 0.12, alpha: 1.0),
-            UIColor(red: 0.12, green: 0.50, blue: 0.18, alpha: 1.0),
-            UIColor(red: 0.12, green: 0.22, blue: 0.60, alpha: 1.0)
-        ]
-        private let colorNames = ["Dark Red", "Dark Green", "Dark Blue"]
+        // Laboratory
+        private let labAssetName = "Laboratory"
+        @State private var labRoot: Entity?
 
-        @State private var spheresRig: Entity?
-        @State private var originalLocal: [String: simd_float4x4] = [:]
-        @State private var returnTasks: [String: Task<Void, Never>] = [:]
+        // Hologram preview (before confirm)
+        @State private var previewLab: Entity?
 
-        // Drag (sphere) on camera-aligned frame. Absolute mapping, XYZ free.
+        // Drag state for eugenes
         @State private var dragFrame: Entity?
         @State private var grabOffsetLocal: SIMD3<Float>?
 
-        // Info panel
-        @State private var infoPanel: Entity?
-        @State private var infoText: String = ""
-        @State private var infoTargetName: String?
+        // Snap-back (WORLD poses)
+        @State private var originalWorld: [String: simd_float4x4] = [:]
+
+        // Machine targets (collision vs anchor)
+        struct MachineTarget { let name: String; let collisionEntity: Entity; let anchorEntity: Entity? }
+        @State private var machines: [MachineTarget] = []
 
         var body: some View {
             RealityView { content, attachments in
@@ -83,20 +97,38 @@ extension ContentView {
                     root.addChild(e)
                     infoPanel = e
                 }
+                if machineUI == nil, let e = attachments.entity(for: "machineUI") {
+                    e.isEnabled = false
+                    // No billboard. Inherit surface orientation.
+                    root.addChild(e)
+                    machineUI = e
+                }
             } attachments: {
                 Attachment(id: "confirmUI") {
                     Button("Confirm placement") { confirmPlacement() }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
-                        .padding(8)
+                        .padding(12)
+                        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 Attachment(id: "infoPanel") {
                     Text(infoText)
                         .font(.system(.title3, weight: .semibold))
                         .multilineTextAlignment(.leading)
                         .padding(12)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        .padding(2)
+                        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                Attachment(id: "machineUI") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Machine Controls").font(.headline)
+                        HStack {
+                            Button("Start") {}
+                            Button("Stop") {}
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(12)
+                    .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
             .task {
@@ -105,10 +137,25 @@ extension ContentView {
                 guard auth[.worldSensing] == .allowed else { return }
                 try? await session.run([planes, world])
 
+                // Preload hologram preview
+                Task {
+                    do {
+                        let ghost = try await Entity(named: labAssetName, in: realityKitContentBundle)
+                        ghost.name = "PreviewLab"
+                        stripAutoFacingAndAnchoring(in: ghost)
+                        disableInteraction(for: ghost)
+                        applyHologram(to: ghost)
+                        ghost.isEnabled = false
+                        root.addChild(ghost)
+                        previewLab = ghost
+                    } catch { print("Preview load failed: \(error)") }
+                }
+
+                // Plane updates
                 Task {
                     for await up in planes.anchorUpdates {
                         if confirmed { continue }
-                        let pid = up.anchor.id
+                        let pid  = up.anchor.id
                         let pose = up.anchor.originFromAnchorTransform
                         switch up.event {
                         case .added, .updated:
@@ -144,7 +191,7 @@ extension ContentView {
                     }
                 }
 
-                // Gaze focus to select one surface
+                // Gaze focus
                 Task {
                     while !confirmed {
                         if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
@@ -166,7 +213,7 @@ extension ContentView {
                 }
             }
 
-            // Plane gestures
+            // Plane rotate
             .gesture(
                 RotationGesture().targetedToAnyEntity()
                     .onChanged { value in
@@ -187,12 +234,14 @@ extension ContentView {
                         guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
                         startPoseRot = nil; startAngleRad = nil
-                        Task { try? await Task.sleep(nanoseconds: 300_000_000)
+                        Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
                             isManipulatingPlane = false
                             if let id = activeID { updateConfirmUI(for: id) }
                         }
                     }
             )
+            // Plane move
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0).targetedToAnyEntity()
                     .onChanged { value in
@@ -224,13 +273,14 @@ extension ContentView {
                         guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
                         isDraggingPlane = false; startPoseMove = nil; lastHitLocal = nil
-                        Task { try? await Task.sleep(nanoseconds: 300_000_000)
+                        Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
                             isManipulatingPlane = false
                             if let id = activeID { updateConfirmUI(for: id) }
                         }
                     }
             )
-            // Tap confirm
+            // Confirm tap
             .simultaneousGesture(
                 SpatialTapGesture().targetedToAnyEntity().onEnded { value in
                     guard !confirmed,
@@ -241,16 +291,14 @@ extension ContentView {
                 }
             )
 
-            // Sphere gestures — ONE drag handles X/Y/Z
+            // Drag Eugenes with anchor-on-collide
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0).targetedToAnyEntity()
                     .onChanged { value in
                         guard confirmed,
-                              let model = value.entity as? ModelEntity,
-                              model.name.hasPrefix("sphere_"),
+                              let model = draggableRoot(from: value.entity),
                               let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) else { return }
 
-                        // Create camera-aligned frame at grab
                         if dragFrame == nil || grabOffsetLocal == nil {
                             let m = dev.originFromAnchorTransform
                             let right   = SIMD3<Float>(m.columns.0.x, m.columns.0.y, m.columns.0.z)
@@ -269,24 +317,18 @@ extension ContentView {
                             root.addChild(frame)
                             dragFrame = frame
 
-                            let grabScene  = value.convert(value.location3D, from: .local, to: .scene)
+                            let grabScene   = value.convert(value.location3D, from: .local, to: .scene)
                             let grabInFrame = frame.convert(position: grabScene, from: nil)
                             let localAtGrab = model.position(relativeTo: frame)
                             grabOffsetLocal = localAtGrab - grabInFrame
                             return
                         }
 
-                        guard let frame = dragFrame,
-                              let gOffset = grabOffsetLocal else { return }
-
-                        // Map pointer scene→frame each update
+                        guard let frame = dragFrame, let gOffset = grabOffsetLocal else { return }
                         let pScene = value.convert(value.location3D, from: .local, to: .scene)
                         let p = frame.convert(position: pScene, from: nil)
-
-                        // Absolute target. No z lock. This gives forward/back with hand.
                         let target = p + gOffset
 
-                        // Mild smoothing
                         let alpha: Float = 0.25
                         let current = model.position(relativeTo: frame)
                         let smoothed = current + (target - current) * alpha
@@ -296,19 +338,22 @@ extension ContentView {
                     }
                     .onEnded { value in
                         guard confirmed,
-                              let model = value.entity as? ModelEntity,
-                              model.name.hasPrefix("sphere_") else { cleanupDrag(); return }
+                              let model = draggableRoot(from: value.entity) else {
+                            cleanupDrag(); return
+                        }
                         cleanupDrag()
-                        scheduleReturn(for: model)
+
+                        if !anchorIfColliding(model) {
+                            returnToOrigin(model)
+                        }
                     }
             )
-            // Tap to toggle info
+            // Tap info
             .simultaneousGesture(
                 SpatialTapGesture().targetedToAnyEntity()
                     .onEnded { value in
                         guard confirmed,
-                              let model = value.entity as? ModelEntity,
-                              model.name.hasPrefix("sphere_") else { return }
+                              let model = draggableRoot(from: value.entity) else { return }
                         if infoTargetName == model.name {
                             infoTargetName = nil
                             infoPanel?.isEnabled = false
@@ -322,54 +367,139 @@ extension ContentView {
             )
         }
 
-        // Confirm: spawn spheres on selected surface
+        // MARK: Confirm
         private func confirmPlacement() {
             guard let id = activeID, let item = items[id] else { return }
             confirmed = true
             for (_, v) in items { v.quad.isEnabled = false }
             confirmUI?.isEnabled = false
+            if let ghost = previewLab { ghost.removeFromParent(); previewLab = nil }
 
-            let rig = Entity()
-            rig.position = .zero
-            item.anchor.addChild(rig)
-            spheresRig = rig
+            Task {
+                do {
+                    let lab = try await Entity(named: labAssetName, in: realityKitContentBundle)
+                    lab.name = "LaboratoryRoot"
+                    stripAutoFacingAndAnchoring(in: lab)
 
-            let r: Float = 0.075, y: Float = r
-            let localPositions: [SIMD3<Float>] = [
-                [-0.20, y,  0.0],
-                [ 0.00, y,  0.0],
-                [ 0.20, y,  0.0]
-            ]
-            let mesh = MeshResource.generateSphere(radius: r)
-            for i in 0..<3 {
-                let mat = UnlitMaterial(color: baseColors[i])
-                let sphere = ModelEntity(mesh: mesh, materials: [mat])
-                sphere.name = "sphere_\(i)"
-                sphere.position = localPositions[i]
-                sphere.generateCollisionShapes(recursive: true)
-                sphere.components.set(InputTargetComponent())
-                rig.addChild(sphere)
-                originalLocal[sphere.name] = sphere.transformMatrix(relativeTo: rig)
+                    let planeWorld = item.anchor.transformMatrix(relativeTo: nil)
+                    lab.setTransformMatrix(planeWorld, relativeTo: nil)
+                    root.addChild(lab)
+                    labRoot = lab
+
+                    // Attach machine UI to machine_ui_anchor and keep orientation
+                    if let anchor = lab.findEntity(named: "machine_ui_anchor"),
+                       let ui = machineUI {
+                        ui.components[BillboardComponent.self] = nil
+                        ui.setParent(anchor)
+                        ui.transform = .identity
+                        ui.position.y += 0.02
+                        ui.isEnabled = true
+                    }
+
+                    recordSpawnWorldPoses(for: lab)
+                    markEugeneSubtreesDraggable(under: lab)
+                    setupMachineTargets()
+                } catch { print("Load \(labAssetName) failed: \(error)") }
             }
         }
 
-        // Focus + confirm UI
+        // MARK: Anchoring on collide
+        private func setupMachineTargets() {
+            guard let lab = labRoot else { return }
+
+            func first(named candidates: [String]) -> Entity? {
+                for n in candidates { if let e = lab.findEntity(named: n) { return e } }
+                return nil
+            }
+            func socketOrSelf(_ e: Entity) -> Entity {
+                if let s = findFirstDescendant(containingAnyOf: ["socket","dock","slot","mount","attach"], under: e) { return s }
+                return e
+            }
+
+            var list: [MachineTarget] = []
+
+            if let m1 = first(named: ["Machine_1","machine_1","machine1"]) {
+                let a1 = first(named: ["machine_1_anchor","Machine_1_anchor","Machine_1_Anchor"])
+                list.append(.init(name: "machine1", collisionEntity: socketOrSelf(m1), anchorEntity: a1))
+            }
+            if let m2 = first(named: ["Machine_2","machine_2","machine2"]) {
+                let a2 = first(named: ["machine_2_anchor","Machine_2_anchor","Machine_2_Anchor"])
+                list.append(.init(name: "machine2", collisionEntity: socketOrSelf(m2), anchorEntity: a2))
+            }
+
+            machines = list
+        }
+
+        private func anchorIfColliding(_ model: Entity) -> Bool {
+            guard !machines.isEmpty else { return false }
+
+            let a = model.visualBounds(relativeTo: nil)
+            let aMin = a.center - a.extents * 0.5
+            let aMax = a.center + a.extents * 0.5
+
+            for mt in machines {
+                let b = mt.collisionEntity.visualBounds(relativeTo: nil)
+                let pad: SIMD3<Float> = .init(repeating: 0.03)
+                let bMin = b.center - b.extents * 0.5 - pad
+                let bMax = b.center + b.extents * 0.5 + pad
+
+                if overlaps(aMin, aMax, bMin, bMax) {
+                    anchorToSpot(model, using: mt)
+                    return true
+                }
+            }
+            return false
+        }
+
+        private func anchorToSpot(_ model: Entity, using mt: MachineTarget) {
+            let anchor = mt.anchorEntity ?? mt.collisionEntity
+
+            let worldT = anchor.transformMatrix(relativeTo: nil)
+            model.move(to: Transform(matrix: worldT),
+                       relativeTo: nil,
+                       duration: 0.20,
+                       timingFunction: .easeInOut)
+
+            Task {
+                try? await Task.sleep(nanoseconds: 220_000_000)
+                await MainActor.run {
+                    model.setParent(anchor)
+                    model.transform = .identity
+                    model.components[Draggable.self] = nil
+                    if infoTargetName == model.name { infoPanel?.isEnabled = false; infoTargetName = nil }
+                }
+            }
+        }
+
+        // MARK: Helpers that were missing
+
         private func setActive(_ id: UUID) {
             if activeID == id { return }
-            if let prev = activeID, let p = items[prev] { p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false }
+            if let prev = activeID, let p = items[prev] {
+                p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false
+            }
             if let p = items[id] {
                 p.quad.model?.materials = [focusMat]
                 p.quad.isEnabled = true
                 activeID = id
                 updateConfirmUI(for: id)
+                if let ghost = previewLab, !confirmed {
+                    ghost.setParent(p.anchor)
+                    ghost.transform = .identity
+                    ghost.isEnabled = true
+                }
             }
         }
+
         private func clearActive() {
             guard let prev = activeID, let p = items[prev] else { return }
             p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false
             activeID = nil
             confirmUI?.isEnabled = false
+            previewLab?.isEnabled = false
+            previewLab?.setParent(root)
         }
+
         private func updateConfirmUI(for id: UUID) {
             guard let item = items[id], let ui = confirmUI else { return }
             ui.setParent(item.anchor)
@@ -377,12 +507,9 @@ extension ContentView {
             ui.isEnabled = (!isManipulatingPlane && !confirmed)
         }
 
-        // Info
-        private func makeInfoText(for model: ModelEntity) -> String {
-            let idx = Int(model.name.split(separator: "_").last ?? "0") ?? 0
-            let colorName = colorNames[min(max(idx, 0), colorNames.count - 1)]
+        private func makeInfoText(for model: Entity) -> String {
+            let name = model.name.isEmpty ? "Item" : model.name
             let p = model.position(relativeTo: nil)
-            let posStr = String(format: "x: %.2f  y: %.2f  z: %.2f", p.x, p.y, p.z)
             var distanceStr = "n/a"
             if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
                 let cam = SIMD3<Float>(dev.originFromAnchorTransform.columns.3.x,
@@ -390,47 +517,147 @@ extension ContentView {
                                        dev.originFromAnchorTransform.columns.3.z)
                 distanceStr = String(format: "%.2f m", simd_length(p - cam))
             }
-            return """
-            Sphere \(idx + 1)
-            Color: \(colorName)
-            Radius: 7.5 cm
-            Position: \(posStr)
-            Distance to viewer: \(distanceStr)
-            """
+            let posStr = String(format: "x: %.2f  y: %.2f  z: %.2f", p.x, p.y, p.z)
+            return "\(name)\nPosition: \(posStr)\nDistance to viewer: \(distanceStr)"
         }
-        private func placeInfoPanel(above model: ModelEntity) {
+
+        private func placeInfoPanel(above model: Entity) {
             guard let panel = infoPanel else { return }
             panel.setParent(model)
             panel.position = [0, 0.18, 0]
         }
 
-        // Auto-return
-        private func scheduleReturn(for model: ModelEntity) {
-            guard let rig = spheresRig,
-                  let targetLocal = originalLocal[model.name] else { return }
-            cancelReturn(for: model.name)
-            returnTasks[model.name] = Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    model.move(to: Transform(matrix: targetLocal),
-                               relativeTo: rig,
-                               duration: 0.5,
-                               timingFunction: .easeInOut)
-                    if infoTargetName == model.name { placeInfoPanel(above: model) }
-                }
-            }
+        private func returnToOrigin(_ model: Entity) {
+            guard let targetWorld = originalWorld[model.name] else { return }
+            model.move(to: Transform(matrix: targetWorld),
+                       relativeTo: nil,
+                       duration: 0.35,
+                       timingFunction: .easeInOut)
+            if infoTargetName == model.name { placeInfoPanel(above: model) }
         }
-        private func cancelReturn(for name: String) {
-            if let t = returnTasks[name] { t.cancel(); returnTasks.removeValue(forKey: name) }
-        }
+
         private func cleanupDrag() {
             grabOffsetLocal = nil
             if let f = dragFrame { f.removeFromParent() }
             dragFrame = nil
         }
 
-        // Helpers
+        // MARK: Utilities
+
+        private func overlaps(_ amin: SIMD3<Float>, _ amax: SIMD3<Float>,
+                              _ bmin: SIMD3<Float>, _ bmax: SIMD3<Float>) -> Bool {
+            return (amin.x <= bmax.x && amax.x >= bmin.x) &&
+                   (amin.y <= bmax.y && amax.y >= bmin.y) &&
+                   (amin.z <= bmax.z && amax.z >= bmin.z)
+        }
+
+        private func findFirst(in root: Entity, names: [String]) -> Entity? {
+            for n in names { if let e = root.findEntity(named: n) { return e } }
+            return nil
+        }
+
+        private func findFirstDescendant(containingAnyOf tokens: [String], under root: Entity) -> Entity? {
+            var stack: [Entity] = [root]
+            while let e = stack.popLast() {
+                let lname = e.name.lowercased()
+                if tokens.contains(where: { lname.contains($0) }) { return e }
+                stack.append(contentsOf: e.children)
+            }
+            return nil
+        }
+
+        private func applyHologram(to root: Entity) {
+            func tint(_ e: Entity) {
+                if let m = e as? ModelEntity {
+                    m.model?.materials = [UnlitMaterial(color: UIColor.cyan.withAlphaComponent(0.35))]
+                    m.components[GroundingShadowComponent.self] = nil
+                }
+                e.components[CollisionComponent.self] = nil
+                e.components[InputTargetComponent.self] = nil
+                for c in e.children { tint(c) }
+            }
+            tint(root)
+        }
+
+        private func disableInteraction(for root: Entity) {
+            func walk(_ e: Entity) {
+                e.components[CollisionComponent.self] = nil
+                e.components[InputTargetComponent.self] = nil
+                for c in e.children { walk(c) }
+            }
+            walk(root)
+        }
+
+        private func stripAutoFacingAndAnchoring(in root: Entity) {
+            if root.components.has(BillboardComponent.self) { root.components[BillboardComponent.self] = nil }
+            if root.components.has(AnchoringComponent.self) { root.components[AnchoringComponent.self] = nil }
+            for c in root.children { stripAutoFacingAndAnchoring(in: c) }
+        }
+
+        private func recordSpawnWorldPoses(for root: Entity) {
+            func dfs(_ e: Entity) {
+                originalWorld[e.name] = e.transformMatrix(relativeTo: nil)
+                for c in e.children { dfs(c) }
+            }
+            dfs(root)
+        }
+
+        private func markEugeneSubtreesDraggable(under root: Entity) {
+            var eugeneRoots: [Entity] = []
+
+            func isEugeneName(_ s: String) -> Bool {
+                let l = s.lowercased()
+                if l.hasPrefix("eugene") { return true }
+                return l.contains("eugene 1") || l.contains("eugene 2") || l.contains("eugene 3")
+                    || l.contains("eugene 4") || l.contains("eugene 5")
+            }
+            func collect(_ e: Entity) {
+                if isEugeneName(e.name) {
+                    var top: Entity = e
+                    var p = e.parent
+                    while let pp = p, isEugeneName(pp.name) { top = pp; p = pp.parent }
+                    if !eugeneRoots.contains(where: { $0 === top }) { eugeneRoots.append(top) }
+                }
+                for c in e.children { collect(c) }
+            }
+            collect(root)
+
+            if eugeneRoots.isEmpty {
+                for c in root.children where c is ModelEntity { eugeneRoots.append(c) }
+            }
+
+            var used = Set(originalWorld.keys)
+            func unique(_ base: String) -> String {
+                let b = base.isEmpty ? "eugene" : base
+                if !used.contains(b) { used.insert(b); return b }
+                while true {
+                    let t = b + "_" + UUID().uuidString.prefix(4)
+                    if !used.contains(t) { used.insert(t); return t }
+                }
+            }
+
+            for r in eugeneRoots {
+                r.components.set(Draggable())
+                if r.name.isEmpty || originalWorld[r.name] != nil { r.name = unique(r.name) }
+
+                r.generateCollisionShapes(recursive: true)
+                r.components.set(InputTargetComponent())
+                func tagDesc(_ e: Entity) {
+                    if let m = e as? ModelEntity {
+                        if m.components[CollisionComponent.self] == nil { m.generateCollisionShapes(recursive: false) }
+                        m.components.set(InputTargetComponent())
+                    }
+                    for c in e.children { tagDesc(c) }
+                }
+                tagDesc(r)
+
+                if originalWorld[r.name] == nil {
+                    originalWorld[r.name] = r.transformMatrix(relativeTo: nil)
+                }
+            }
+        }
+
+        // Math
         private func centerXZ(of m: simd_float4x4) -> SIMD2<Float> { .init(m.columns.3.x, m.columns.3.z) }
         private func nearestItem(to p: SIMD2<Float>, within thresh: Float) -> (UUID, PlaneItem)? {
             var best: (UUID, PlaneItem)?; var bestDist = thresh
