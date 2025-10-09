@@ -6,17 +6,17 @@ import simd
 import QuartzCore
 import UIKit
 
-// Marker for draggable roots
 struct Draggable: Component {}
 
 private func draggableRoot(from e: Entity) -> Entity? {
-    var cur: Entity? = e
-    var last: Entity?
-    while let c = cur {
-        if c.components.has(Draggable.self) { last = c }
-        cur = c.parent
-    }
+    var cur: Entity? = e, last: Entity?
+    while let c = cur { if c.components.has(Draggable.self) { last = c }; cur = c.parent }
     return last
+}
+private func isDescendant(_ child: Entity, of ancestor: Entity) -> Bool {
+    var p: Entity? = child
+    while let c = p { if c === ancestor { return true }; p = c.parent }
+    return false
 }
 
 struct ContentView: View {
@@ -48,6 +48,7 @@ extension ContentView {
         // Plane manipulation
         @State private var isManipulatingPlane = false
         @State private var isDraggingPlane = false
+        @State private var isRotatingPlane = false
         @State private var startPoseRot: simd_float4x4?
         @State private var startAngleRad: Float?
         @State private var startPoseMove: simd_float4x4?
@@ -55,31 +56,31 @@ extension ContentView {
         private let stepClamp: Float = 0.03
         private let quant: Float     = 0.01
         private let mergeDistance: Float = 0.30
+        @State private var planeDragBlockUntil: CFTimeInterval = 0   // block drag for 1 s after rotate
 
         // UI attachments
         @State private var confirmUI: Entity?
         @State private var infoPanel: Entity?
-        @State private var machineUI: Entity?   // machine_ui_anchor UI
+        @State private var machineUI: Entity?
         @State private var infoText = ""
         @State private var infoTargetName: String?
 
-        // Laboratory
+        // Lab
         private let labAssetName = "Laboratory"
         @State private var labRoot: Entity?
-
-        // Hologram preview (before confirm)
         @State private var previewLab: Entity?
 
-        // Drag state for eugenes
+        // Eugène drag
         @State private var dragFrame: Entity?
         @State private var grabOffsetLocal: SIMD3<Float>?
 
-        // Snap-back (WORLD poses)
+        // Spawn poses (world)
         @State private var originalWorld: [String: simd_float4x4] = [:]
 
-        // Machine targets (collision vs anchor)
+        // Machines
         struct MachineTarget { let name: String; let collisionEntity: Entity; let anchorEntity: Entity? }
         @State private var machines: [MachineTarget] = []
+        @State private var occupiedByAnchor: [ObjectIdentifier: Entity] = [:]
 
         var body: some View {
             RealityView { content, attachments in
@@ -99,7 +100,6 @@ extension ContentView {
                 }
                 if machineUI == nil, let e = attachments.entity(for: "machineUI") {
                     e.isEnabled = false
-                    // No billboard. Inherit surface orientation.
                     root.addChild(e)
                     machineUI = e
                 }
@@ -121,11 +121,8 @@ extension ContentView {
                 Attachment(id: "machineUI") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Machine Controls").font(.headline)
-                        HStack {
-                            Button("Start") {}
-                            Button("Stop") {}
-                        }
-                        .buttonStyle(.bordered)
+                        HStack { Button("Start") {}; Button("Stop") {} }
+                            .buttonStyle(.bordered)
                     }
                     .padding(12)
                     .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -137,10 +134,9 @@ extension ContentView {
                 guard auth[.worldSensing] == .allowed else { return }
                 try? await session.run([planes, world])
 
-                // Preload hologram preview
+                // Load preview
                 Task {
-                    do {
-                        let ghost = try await Entity(named: labAssetName, in: realityKitContentBundle)
+                    if let ghost = try? await Entity(named: labAssetName, in: realityKitContentBundle) {
                         ghost.name = "PreviewLab"
                         stripAutoFacingAndAnchoring(in: ghost)
                         disableInteraction(for: ghost)
@@ -148,7 +144,7 @@ extension ContentView {
                         ghost.isEnabled = false
                         root.addChild(ghost)
                         previewLab = ghost
-                    } catch { print("Preview load failed: \(error)") }
+                    }
                 }
 
                 // Plane updates
@@ -161,7 +157,6 @@ extension ContentView {
                         case .added, .updated:
                             guard up.anchor.surfaceClassification == .table else { continue }
                             if let item = items[pid], item.locked { continue }
-
                             let center = centerXZ(of: pose)
                             if let (existingID, existing) = nearestItem(to: center, within: mergeDistance) {
                                 await MainActor.run {
@@ -213,7 +208,7 @@ extension ContentView {
                 }
             }
 
-            // Plane rotate
+            // Rotate plane
             .gesture(
                 RotationGesture().targetedToAnyEntity()
                     .onChanged { value in
@@ -221,6 +216,7 @@ extension ContentView {
                               let id = activeID,
                               let item = items[id],
                               value.entity == item.quad else { return }
+                        isRotatingPlane = true
                         if !isManipulatingPlane { isManipulatingPlane = true; confirmUI?.isEnabled = false }
                         if startPoseRot == nil || startAngleRad == nil {
                             startPoseRot  = item.anchor.transformMatrix(relativeTo: nil)
@@ -234,18 +230,18 @@ extension ContentView {
                         guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
                         startPoseRot = nil; startAngleRad = nil
-                        Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            isManipulatingPlane = false
-                            if let id = activeID { updateConfirmUI(for: id) }
-                        }
+                        isRotatingPlane = false
+                        planeDragBlockUntil = CACurrentMediaTime() + 1.0
+                        Task { try? await Task.sleep(nanoseconds: 300_000_000); isManipulatingPlane = false; if let id = activeID { updateConfirmUI(for: id) } }
                     }
             )
-            // Plane move
+            // Move plane (blocked while rotating and for 1 s after)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0).targetedToAnyEntity()
                     .onChanged { value in
                         guard !confirmed,
+                              !isRotatingPlane,
+                              CACurrentMediaTime() >= planeDragBlockUntil,
                               let id = activeID,
                               let item = items[id],
                               value.entity == item.quad else { return }
@@ -273,11 +269,7 @@ extension ContentView {
                         guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
                         isDraggingPlane = false; startPoseMove = nil; lastHitLocal = nil
-                        Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            isManipulatingPlane = false
-                            if let id = activeID { updateConfirmUI(for: id) }
-                        }
+                        Task { try? await Task.sleep(nanoseconds: 300_000_000); isManipulatingPlane = false; if let id = activeID { updateConfirmUI(for: id) } }
                     }
             )
             // Confirm tap
@@ -291,7 +283,7 @@ extension ContentView {
                 }
             )
 
-            // Drag Eugenes with anchor-on-collide
+            // Eugène drag
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0).targetedToAnyEntity()
                     .onChanged { value in
@@ -300,6 +292,8 @@ extension ContentView {
                               let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) else { return }
 
                         if dragFrame == nil || grabOffsetLocal == nil {
+                            detachIfAnchored(model)
+
                             let m = dev.originFromAnchorTransform
                             let right   = SIMD3<Float>(m.columns.0.x, m.columns.0.y, m.columns.0.z)
                             let up      = SIMD3<Float>(m.columns.1.x, m.columns.1.y, m.columns.1.z)
@@ -338,14 +332,9 @@ extension ContentView {
                     }
                     .onEnded { value in
                         guard confirmed,
-                              let model = draggableRoot(from: value.entity) else {
-                            cleanupDrag(); return
-                        }
+                              let model = draggableRoot(from: value.entity) else { cleanupDrag(); return }
                         cleanupDrag()
-
-                        if !anchorIfColliding(model) {
-                            returnToOrigin(model)
-                        }
+                        if !anchorIfColliding(model) { returnToOrigin(model) }   // always return if not anchored
                     }
             )
             // Tap info
@@ -367,7 +356,7 @@ extension ContentView {
             )
         }
 
-        // MARK: Confirm
+        // Confirm
         private func confirmPlacement() {
             guard let id = activeID, let item = items[id] else { return }
             confirmed = true
@@ -376,8 +365,7 @@ extension ContentView {
             if let ghost = previewLab { ghost.removeFromParent(); previewLab = nil }
 
             Task {
-                do {
-                    let lab = try await Entity(named: labAssetName, in: realityKitContentBundle)
+                if let lab = try? await Entity(named: labAssetName, in: realityKitContentBundle) {
                     lab.name = "LaboratoryRoot"
                     stripAutoFacingAndAnchoring(in: lab)
 
@@ -386,7 +374,6 @@ extension ContentView {
                     root.addChild(lab)
                     labRoot = lab
 
-                    // Attach machine UI to machine_ui_anchor and keep orientation
                     if let anchor = lab.findEntity(named: "machine_ui_anchor"),
                        let ui = machineUI {
                         ui.components[BillboardComponent.self] = nil
@@ -399,14 +386,13 @@ extension ContentView {
                     recordSpawnWorldPoses(for: lab)
                     markEugeneSubtreesDraggable(under: lab)
                     setupMachineTargets()
-                } catch { print("Load \(labAssetName) failed: \(error)") }
+                }
             }
         }
 
-        // MARK: Anchoring on collide
+        // Machines
         private func setupMachineTargets() {
             guard let lab = labRoot else { return }
-
             func first(named candidates: [String]) -> Entity? {
                 for n in candidates { if let e = lab.findEntity(named: n) { return e } }
                 return nil
@@ -415,9 +401,7 @@ extension ContentView {
                 if let s = findFirstDescendant(containingAnyOf: ["socket","dock","slot","mount","attach"], under: e) { return s }
                 return e
             }
-
             var list: [MachineTarget] = []
-
             if let m1 = first(named: ["Machine_1","machine_1","machine1"]) {
                 let a1 = first(named: ["machine_1_anchor","Machine_1_anchor","Machine_1_Anchor"])
                 list.append(.init(name: "machine1", collisionEntity: socketOrSelf(m1), anchorEntity: a1))
@@ -426,159 +410,121 @@ extension ContentView {
                 let a2 = first(named: ["machine_2_anchor","Machine_2_anchor","Machine_2_Anchor"])
                 list.append(.init(name: "machine2", collisionEntity: socketOrSelf(m2), anchorEntity: a2))
             }
-
             machines = list
+            occupiedByAnchor.removeAll()
         }
-
+        private func key(for mt: MachineTarget) -> ObjectIdentifier { ObjectIdentifier(mt.anchorEntity ?? mt.collisionEntity) }
+        private func occupant(of mt: MachineTarget) -> Entity? { occupiedByAnchor[key(for: mt)] }
+        private func setOccupant(of mt: MachineTarget, to entity: Entity?) {
+            let k = key(for: mt); if let e = entity { occupiedByAnchor[k] = e } else { occupiedByAnchor.removeValue(forKey: k) }
+        }
+        private func detachIfAnchored(_ model: Entity) {
+            for mt in machines {
+                let anchor = mt.anchorEntity ?? mt.collisionEntity
+                if isDescendant(model, of: anchor) {
+                    if let occ = occupant(of: mt), occ === model { setOccupant(of: mt, to: nil) }
+                    let worldT = model.transformMatrix(relativeTo: nil)
+                    model.setParent(root)
+                    model.setTransformMatrix(worldT, relativeTo: nil)
+                    return
+                }
+            }
+        }
         private func anchorIfColliding(_ model: Entity) -> Bool {
             guard !machines.isEmpty else { return false }
-
             let a = model.visualBounds(relativeTo: nil)
             let aMin = a.center - a.extents * 0.5
             let aMax = a.center + a.extents * 0.5
-
             for mt in machines {
                 let b = mt.collisionEntity.visualBounds(relativeTo: nil)
                 let pad: SIMD3<Float> = .init(repeating: 0.03)
                 let bMin = b.center - b.extents * 0.5 - pad
                 let bMax = b.center + b.extents * 0.5 + pad
-
-                if overlaps(aMin, aMax, bMin, bMax) {
-                    anchorToSpot(model, using: mt)
-                    return true
-                }
+                if overlaps(amin: aMin, amax: aMax, bmin: bMin, bmax: bMax) { anchorToSpot(model, using: mt); return true }
             }
             return false
         }
-
         private func anchorToSpot(_ model: Entity, using mt: MachineTarget) {
             let anchor = mt.anchorEntity ?? mt.collisionEntity
-
+            if let occ = occupant(of: mt), occ !== model {
+                let worldT = occ.transformMatrix(relativeTo: nil)
+                occ.setParent(root)
+                occ.setTransformMatrix(worldT, relativeTo: nil)
+                returnToOrigin(occ)
+                setOccupant(of: mt, to: nil)
+            }
             let worldT = anchor.transformMatrix(relativeTo: nil)
-            model.move(to: Transform(matrix: worldT),
-                       relativeTo: nil,
-                       duration: 0.20,
-                       timingFunction: .easeInOut)
-
+            model.move(to: Transform(matrix: worldT), relativeTo: nil, duration: 0.20, timingFunction: .easeInOut)
             Task {
                 try? await Task.sleep(nanoseconds: 220_000_000)
                 await MainActor.run {
                     model.setParent(anchor)
                     model.transform = .identity
-                    model.components[Draggable.self] = nil
+                    setOccupant(of: mt, to: model)
                     if infoTargetName == model.name { infoPanel?.isEnabled = false; infoTargetName = nil }
                 }
             }
         }
 
-        // MARK: Helpers that were missing
-
+        // Focus/UI
         private func setActive(_ id: UUID) {
             if activeID == id { return }
-            if let prev = activeID, let p = items[prev] {
-                p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false
-            }
+            if let prev = activeID, let p = items[prev] { p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false }
             if let p = items[id] {
-                p.quad.model?.materials = [focusMat]
-                p.quad.isEnabled = true
-                activeID = id
-                updateConfirmUI(for: id)
-                if let ghost = previewLab, !confirmed {
-                    ghost.setParent(p.anchor)
-                    ghost.transform = .identity
-                    ghost.isEnabled = true
-                }
+                p.quad.model?.materials = [focusMat]; p.quad.isEnabled = true
+                activeID = id; updateConfirmUI(for: id)
+                if let ghost = previewLab, !confirmed { ghost.setParent(p.anchor); ghost.transform = .identity; ghost.isEnabled = true }
             }
         }
-
         private func clearActive() {
             guard let prev = activeID, let p = items[prev] else { return }
             p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false
-            activeID = nil
-            confirmUI?.isEnabled = false
-            previewLab?.isEnabled = false
-            previewLab?.setParent(root)
+            activeID = nil; confirmUI?.isEnabled = false
+            previewLab?.isEnabled = false; previewLab?.setParent(root)
         }
-
         private func updateConfirmUI(for id: UUID) {
             guard let item = items[id], let ui = confirmUI else { return }
-            ui.setParent(item.anchor)
-            ui.position = [0, 0.40, 0]
+            ui.setParent(item.anchor); ui.position = [0, 0.40, 0]
             ui.isEnabled = (!isManipulatingPlane && !confirmed)
         }
 
+        // Info panel
         private func makeInfoText(for model: Entity) -> String {
             let name = model.name.isEmpty ? "Item" : model.name
             let p = model.position(relativeTo: nil)
-            var distanceStr = "n/a"
+            var dStr = "n/a"
             if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
                 let cam = SIMD3<Float>(dev.originFromAnchorTransform.columns.3.x,
                                        dev.originFromAnchorTransform.columns.3.y,
                                        dev.originFromAnchorTransform.columns.3.z)
-                distanceStr = String(format: "%.2f m", simd_length(p - cam))
+                dStr = String(format: "%.2f m", simd_length(p - cam))
             }
-            let posStr = String(format: "x: %.2f  y: %.2f  z: %.2f", p.x, p.y, p.z)
-            return "\(name)\nPosition: \(posStr)\nDistance to viewer: \(distanceStr)"
+            let pos = String(format: "x: %.2f  y: %.2f  z: %.2f", p.x, p.y, p.z)
+            return "\(name)\nPosition: \(pos)\nDistance: \(dStr)"
         }
-
         private func placeInfoPanel(above model: Entity) {
             guard let panel = infoPanel else { return }
-            panel.setParent(model)
-            panel.position = [0, 0.18, 0]
+            panel.setParent(model); panel.position = [0, 0.18, 0]
         }
 
+        // Return + cleanup
         private func returnToOrigin(_ model: Entity) {
             guard let targetWorld = originalWorld[model.name] else { return }
-            model.move(to: Transform(matrix: targetWorld),
-                       relativeTo: nil,
-                       duration: 0.35,
-                       timingFunction: .easeInOut)
+            model.move(to: Transform(matrix: targetWorld), relativeTo: nil, duration: 0.35, timingFunction: .easeInOut)
             if infoTargetName == model.name { placeInfoPanel(above: model) }
         }
-
         private func cleanupDrag() {
             grabOffsetLocal = nil
             if let f = dragFrame { f.removeFromParent() }
             dragFrame = nil
         }
 
-        // MARK: Utilities
-
-        private func overlaps(_ amin: SIMD3<Float>, _ amax: SIMD3<Float>,
-                              _ bmin: SIMD3<Float>, _ bmax: SIMD3<Float>) -> Bool {
-            return (amin.x <= bmax.x && amax.x >= bmin.x) &&
-                   (amin.y <= bmax.y && amax.y >= bmin.y) &&
-                   (amin.z <= bmax.z && amax.z >= bmin.z)
+        // Scene utils
+        private func stripAutoFacingAndAnchoring(in root: Entity) {
+            if root.components.has(BillboardComponent.self) { root.components[BillboardComponent.self] = nil }
+            if root.components.has(AnchoringComponent.self) { root.components[AnchoringComponent.self] = nil }
+            for c in root.children { stripAutoFacingAndAnchoring(in: c) }
         }
-
-        private func findFirst(in root: Entity, names: [String]) -> Entity? {
-            for n in names { if let e = root.findEntity(named: n) { return e } }
-            return nil
-        }
-
-        private func findFirstDescendant(containingAnyOf tokens: [String], under root: Entity) -> Entity? {
-            var stack: [Entity] = [root]
-            while let e = stack.popLast() {
-                let lname = e.name.lowercased()
-                if tokens.contains(where: { lname.contains($0) }) { return e }
-                stack.append(contentsOf: e.children)
-            }
-            return nil
-        }
-
-        private func applyHologram(to root: Entity) {
-            func tint(_ e: Entity) {
-                if let m = e as? ModelEntity {
-                    m.model?.materials = [UnlitMaterial(color: UIColor.cyan.withAlphaComponent(0.35))]
-                    m.components[GroundingShadowComponent.self] = nil
-                }
-                e.components[CollisionComponent.self] = nil
-                e.components[InputTargetComponent.self] = nil
-                for c in e.children { tint(c) }
-            }
-            tint(root)
-        }
-
         private func disableInteraction(for root: Entity) {
             func walk(_ e: Entity) {
                 e.components[CollisionComponent.self] = nil
@@ -587,13 +533,17 @@ extension ContentView {
             }
             walk(root)
         }
-
-        private func stripAutoFacingAndAnchoring(in root: Entity) {
-            if root.components.has(BillboardComponent.self) { root.components[BillboardComponent.self] = nil }
-            if root.components.has(AnchoringComponent.self) { root.components[AnchoringComponent.self] = nil }
-            for c in root.children { stripAutoFacingAndAnchoring(in: c) }
+        private func applyHologram(to root: Entity) {
+            func tint(_ e: Entity) {
+                if let m = e as? ModelEntity {
+                    m.model?.materials = [UnlitMaterial(color: UIColor.cyan.withAlphaComponent(0.35))]
+                }
+                e.components[CollisionComponent.self] = nil
+                e.components[InputTargetComponent.self] = nil
+                for c in e.children { tint(c) }
+            }
+            tint(root)
         }
-
         private func recordSpawnWorldPoses(for root: Entity) {
             func dfs(_ e: Entity) {
                 originalWorld[e.name] = e.transformMatrix(relativeTo: nil)
@@ -601,7 +551,6 @@ extension ContentView {
             }
             dfs(root)
         }
-
         private func markEugeneSubtreesDraggable(under root: Entity) {
             var eugeneRoots: [Entity] = []
 
@@ -613,8 +562,7 @@ extension ContentView {
             }
             func collect(_ e: Entity) {
                 if isEugeneName(e.name) {
-                    var top: Entity = e
-                    var p = e.parent
+                    var top: Entity = e; var p = e.parent
                     while let pp = p, isEugeneName(pp.name) { top = pp; p = pp.parent }
                     if !eugeneRoots.contains(where: { $0 === top }) { eugeneRoots.append(top) }
                 }
@@ -626,22 +574,27 @@ extension ContentView {
                 for c in root.children where c is ModelEntity { eugeneRoots.append(c) }
             }
 
-            var used = Set(originalWorld.keys)
-            func unique(_ base: String) -> String {
-                let b = base.isEmpty ? "eugene" : base
-                if !used.contains(b) { used.insert(b); return b }
-                while true {
-                    let t = b + "_" + UUID().uuidString.prefix(4)
-                    if !used.contains(t) { used.insert(t); return t }
+            var used = Set<String>()
+            func uniqueName(_ base: String) -> String {
+                var n = base.isEmpty ? "eugene" : base
+                var idx = 1
+                var candidate = n
+                while used.contains(candidate) {
+                    idx += 1
+                    candidate = "\(n)_\(idx)"
                 }
+                used.insert(candidate)
+                return candidate
             }
 
             for r in eugeneRoots {
-                r.components.set(Draggable())
-                if r.name.isEmpty || originalWorld[r.name] != nil { r.name = unique(r.name) }
+                if r.name.isEmpty || used.contains(r.name) { r.name = uniqueName(r.name) }
+                else { used.insert(r.name) }
 
+                r.components.set(Draggable())
                 r.generateCollisionShapes(recursive: true)
                 r.components.set(InputTargetComponent())
+
                 func tagDesc(_ e: Entity) {
                     if let m = e as? ModelEntity {
                         if m.components[CollisionComponent.self] == nil { m.generateCollisionShapes(recursive: false) }
@@ -651,10 +604,23 @@ extension ContentView {
                 }
                 tagDesc(r)
 
-                if originalWorld[r.name] == nil {
-                    originalWorld[r.name] = r.transformMatrix(relativeTo: nil)
-                }
+                originalWorld[r.name] = r.transformMatrix(relativeTo: nil)
             }
+        }
+        private func findFirstDescendant(containingAnyOf tokens: [String], under root: Entity) -> Entity? {
+            var stack: [Entity] = [root]
+            while let e = stack.popLast() {
+                let l = e.name.lowercased()
+                if tokens.contains(where: { l.contains($0) }) { return e }
+                stack.append(contentsOf: e.children)
+            }
+            return nil
+        }
+        private func overlaps(amin: SIMD3<Float>, amax: SIMD3<Float>,
+                              bmin: SIMD3<Float>, bmax: SIMD3<Float>) -> Bool {
+            (amin.x <= bmax.x && amax.x >= bmin.x) &&
+            (amin.y <= bmax.y && amax.y >= bmin.y) &&
+            (amin.z <= bmax.z && amax.z >= bmin.z)
         }
 
         // Math
