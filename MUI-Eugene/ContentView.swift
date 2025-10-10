@@ -10,7 +10,6 @@ import Foundation
 // MARK: - Components
 struct Draggable: Component {}
 
-/// Fallback cache when RC data missing.
 struct EugeneData: Component, Codable {
     var code: String
     var generation: Int
@@ -30,8 +29,6 @@ private func isDescendant(_ child: Entity, of ancestor: Entity) -> Bool {
     }
     return false
 }
-
-// Prefer the registered custom component. Search self → ancestors → descendants.
 private func findEugeneComponent(near e: Entity) -> EugeneComponent? {
     if let c = e.components[EugeneComponent.self] { return c }
     var p = e.parent
@@ -48,7 +45,6 @@ private func findEugeneComponent(near e: Entity) -> EugeneComponent? {
     }
     return nil
 }
-
 private func parseCodeFromName(_ name: String) -> String? {
     if let m = try? NSRegularExpression(pattern: "[A-Za-z]{2,12}")
         .firstMatch(in: name, range: NSRange(location: 0, length: name.utf16.count)),
@@ -101,6 +97,10 @@ extension ContentView {
         @State private var machineUI: Entity?
         @State private var infoText = ""
         @State private var infoTargetName: String?
+
+        // Machine UI text
+        @State private var m1Text: String = "Machine 1: Empty"
+        @State private var m2Text: String = "Machine 2: Empty"
 
         // Lab
         private let labAssetName = "Laboratory"
@@ -156,10 +156,14 @@ extension ContentView {
                         .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 Attachment(id: "machineUI") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Machine Controls").font(.headline)
-                        HStack { Button("Start") {}; Button("Stop") {} }
-                            .buttonStyle(.bordered)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Machine Panel").font(.headline)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(m1Text).monospaced()
+                            Text(m2Text).monospaced()
+                        }
+                        .padding(8)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .padding(12)
                     .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -374,7 +378,7 @@ extension ContentView {
                         if !anchorIfColliding(model) { returnToOrigin(model) }
                     }
             )
-            // Tap info (reads registered EugeneComponent if present)
+            // Tap info
             .simultaneousGesture(
                 SpatialTapGesture().targetedToAnyEntity()
                     .onEnded { value in
@@ -424,6 +428,7 @@ extension ContentView {
                     recordSpawnWorldPoses(for: lab)
                     markEugeneSubtreesDraggable(under: lab)
                     setupMachineTargets()
+                    updateMachineUI()
                 }
             }
         }
@@ -450,11 +455,13 @@ extension ContentView {
             }
             machines = list
             occupiedByAnchor.removeAll()
+            updateMachineUI()
         }
         private func key(for mt: MachineTarget) -> ObjectIdentifier { ObjectIdentifier(mt.anchorEntity ?? mt.collisionEntity) }
         private func occupant(of mt: MachineTarget) -> Entity? { occupiedByAnchor[key(for: mt)] }
         private func setOccupant(of mt: MachineTarget, to entity: Entity?) {
-            let k = key(for: mt); if let e = entity { occupiedByAnchor[k] = e } else { occupiedByAnchor.removeValue(forKey: k) }
+            let k = key(for: mt)
+            if let e = entity { occupiedByAnchor[k] = e } else { occupiedByAnchor.removeValue(forKey: k) }
         }
         private func detachIfAnchored(_ model: Entity) {
             for mt in machines {
@@ -464,6 +471,7 @@ extension ContentView {
                     let worldT = model.transformMatrix(relativeTo: nil)
                     model.setParent(root)
                     model.setTransformMatrix(worldT, relativeTo: nil)
+                    updateMachineUI()
                     return
                 }
             }
@@ -499,8 +507,30 @@ extension ContentView {
                     model.setParent(anchor)
                     model.transform = .identity
                     setOccupant(of: mt, to: model)
+                    updateMachineUI()
                     if infoTargetName == model.name { infoPanel?.isEnabled = false; infoTargetName = nil }
                 }
+            }
+        }
+
+        // Machine UI data
+        private func codeGen(for e: Entity) -> (String, Int) {
+            if let c = findEugeneComponent(near: e) { return (c.code, c.generation) }
+            if let d = e.components[EugeneData.self] { return (d.code, d.generation) }
+            return ("—", 0)
+        }
+        private func updateMachineUI() {
+            if machines.indices.contains(0) {
+                if let occ = occupant(of: machines[0]) {
+                    let (code, gen) = codeGen(for: occ)
+                    m1Text = "Machine 1: \(code) • Gen \(gen)"
+                } else { m1Text = "Machine 1: Empty" }
+            }
+            if machines.indices.contains(1) {
+                if let occ = occupant(of: machines[1]) {
+                    let (code, gen) = codeGen(for: occ)
+                    m2Text = "Machine 2: \(code) • Gen \(gen)"
+                } else { m2Text = "Machine 2: Empty" }
             }
         }
 
@@ -526,26 +556,17 @@ extension ContentView {
             ui.isEnabled = (!isManipulatingPlane && !confirmed)
         }
 
-        // Info panel text — prefer registered EugeneComponent
+        // Info panel
         private func makeInfoText(for model: Entity) -> String {
             let name = model.name.isEmpty ? "Item" : model.name
-
-            if let c = findEugeneComponent(near: model) {
-                // Reads the RC-authored values because the component was registered pre-load.
-                let code = c.code
-                let gen  = c.generation
-                return infoBlock(name: name, code: code, gen: gen, at: model)
-            }
-
-            // Fallbacks if RC component is absent
-            let code = model.components[EugeneData.self]?.code
+            let code: String = findEugeneComponent(near: model)?.code
+                ?? model.components[EugeneData.self]?.code
                 ?? parseCodeFromName(model.name)
                 ?? "AaBb"
-            let gen  = model.components[EugeneData.self]?.generation ?? 0
-            return infoBlock(name: name, code: code, gen: gen, at: model)
-        }
+            let gen: Int = findEugeneComponent(near: model)?.generation
+                ?? model.components[EugeneData.self]?.generation
+                ?? 0
 
-        private func infoBlock(name: String, code: String, gen: Int, at model: Entity) -> String {
             let p = model.position(relativeTo: nil)
             var dStr = "n/a"
             if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
@@ -562,7 +583,6 @@ extension ContentView {
             Distance: \(dStr)
             """
         }
-
         private func placeInfoPanel(above model: Entity) {
             guard let panel = infoPanel else { return }
             panel.setParent(model); panel.position = [0, 0.18, 0]
@@ -620,18 +640,22 @@ extension ContentView {
             let gen  = findEugeneComponent(near: e)?.generation ?? 0
             e.components.set(EugeneData(code: code, generation: gen))
         }
+
+        // Tag all Eugène subtrees as draggable and ensure they carry code/gen.
         private func markEugeneSubtreesDraggable(under root: Entity) {
             var eugeneRoots: [Entity] = []
 
             func isEugeneName(_ s: String) -> Bool {
                 let l = s.lowercased()
-                if l.hasPrefix("eugene") { return true }
-                return l.contains("eugene 1") || l.contains("eugene 2") || l.contains("eugene 3")
-                    || l.contains("eugene 4") || l.contains("eugene 5")
+                return l.hasPrefix("eugene") ||
+                       l.contains("eugene_") ||
+                       l.contains("eugene 1") || l.contains("eugene 2") || l.contains("eugene 3") ||
+                       l.contains("eugene 4") || l.contains("eugene 5")
             }
             func collect(_ e: Entity) {
                 if isEugeneName(e.name) {
-                    var top: Entity = e; var p: Entity? = e.parent
+                    var top: Entity = e
+                    var p: Entity? = e.parent
                     while let pp = p, isEugeneName(pp.name) { top = pp; p = pp.parent }
                     if !eugeneRoots.contains(where: { $0 === top }) { eugeneRoots.append(top) }
                 }
