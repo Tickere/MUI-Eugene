@@ -5,6 +5,8 @@
     upAxis = "Y"
 )
 
+reorder rootPrims = ["Root", "Generated_anchor_1", "Generated_anchor_2", "Generated_anchor_3", "Generated_anchor_4"]
+
 def Xform "Root"
 {
     reorder nameChildren = ["Machine", "Eugene_1", "Eugene_2", "Eugene_3", "Eugene_4", "Eugene_5", "Anchoring", "machine_2_anchor"]
@@ -370,5 +372,53 @@ def Xform "Root"
             token type = "Plane"
         }
     }
+}
+
+def Xform "Generated_anchor_1" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (20, 20)
+    int ui:nodegraph:node:stackingOrder = 1
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (-0.27387738, 0, 0.29198855)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+}
+
+def Xform "Generated_anchor_2" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (40, 40)
+    int ui:nodegraph:node:stackingOrder = 2
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (-0.0799856, 0, 0.29198855)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+}
+
+def Xform "Generated_anchor_3" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (60, 60)
+    int ui:nodegraph:node:stackingOrder = 3
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (0.14399697, 0, 0.29198855)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+}
+
+def Xform "Generated_anchor_4" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (80, 80)
+    int ui:nodegraph:node:stackingOrder = 4
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (0.14399697, 0, 0.45065874)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 }
 
