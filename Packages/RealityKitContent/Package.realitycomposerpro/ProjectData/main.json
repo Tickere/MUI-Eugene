@@ -1,0 +1,13 @@
+{
+  "pathsToIds" : {
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene.usd" : "BC56AE7A-0A32-40D1-B028-0A72E2885253",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene.usda" : "B560479E-005E-45B0-9A73-9EC0E1A016DE",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Laboratory.usda" : "0F1A11FA-2FEB-4752-994E-244892BAF738"
+  },
+  "projectID" : -2261019585485587526,
+  "uuidToIntID" : {
+    "0F1A11FA-2FEB-4752-994E-244892BAF738" : -8463279484186294823,
+    "B560479E-005E-45B0-9A73-9EC0E1A016DE" : 9173441943121514917,
+    "BC56AE7A-0A32-40D1-B028-0A72E2885253" : -7226488981228465689
+  }
+}

@@ -14,16 +14,20 @@ def Xform "Root"
 
     def "Eugene_1" (
         active = true
+        customData = {
+            float3 rotationEulerHint = (0, 0, 0)
+        }
         references = @Eugene.usda@
     )
     {
+        quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (-0.47876582, 0, 0.31118333)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "jhdslakjfsa"
+            string code = "AaBbCc"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 
@@ -50,6 +54,14 @@ def Xform "Root"
                 }
             }
         }
+
+        over "Armature_Eugene"
+        {
+            quatf xformOp:orient = (1, 0, 0, 0)
+            float3 xformOp:scale = (0.0005, 0.0005, 0.0005)
+            double3 xformOp:translate = (0.0019037127494812012, 0.04021205008029938, -0.009379923343658447)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+        }
     }
 
     def "Eugene_2" (
@@ -63,7 +75,7 @@ def Xform "Root"
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "sdafirioöf"
+            string code = "AaBbCc"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 
@@ -233,7 +245,7 @@ def Xform "Root"
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "sadfhsadilf"
+            string code = "aaBBcc"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 
@@ -275,7 +287,7 @@ def Xform "Root"
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "asdguhdsafli"
+            string code = "AAbbcc"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 
@@ -317,7 +329,7 @@ def Xform "Root"
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "wqur89"
+            string code = "aabbCC"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 

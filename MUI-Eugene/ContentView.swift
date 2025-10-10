@@ -5,9 +5,18 @@ import ARKit
 import simd
 import QuartzCore
 import UIKit
+import Foundation
 
+// MARK: - Components
 struct Draggable: Component {}
 
+/// Fallback cache when RC data missing.
+struct EugeneData: Component, Codable {
+    var code: String
+    var generation: Int
+}
+
+// MARK: - Helpers
 private func draggableRoot(from e: Entity) -> Entity? {
     var cur: Entity? = e, last: Entity?
     while let c = cur { if c.components.has(Draggable.self) { last = c }; cur = c.parent }
@@ -15,8 +24,36 @@ private func draggableRoot(from e: Entity) -> Entity? {
 }
 private func isDescendant(_ child: Entity, of ancestor: Entity) -> Bool {
     var p: Entity? = child
-    while let c = p { if c === ancestor { return true }; p = c.parent }
+    while let c = p {
+        if c === ancestor { return true }
+        p = c.parent
+    }
     return false
+}
+
+// Prefer the registered custom component. Search self → ancestors → descendants.
+private func findEugeneComponent(near e: Entity) -> EugeneComponent? {
+    if let c = e.components[EugeneComponent.self] { return c }
+    var p = e.parent
+    while let cur = p {
+        if let c = cur.components[EugeneComponent.self] { return c }
+        p = cur.parent
+    }
+    var q: [(Entity, Int)] = e.children.map { ($0, 1) }
+    let maxDepth = 4
+    while let (n, d) = q.first {
+        q.removeFirst()
+        if let c = n.components[EugeneComponent.self] { return c }
+        if d < maxDepth { q.append(contentsOf: n.children.map { ($0, d + 1) }) }
+    }
+    return nil
+}
+
+private func parseCodeFromName(_ name: String) -> String? {
+    if let m = try? NSRegularExpression(pattern: "[A-Za-z]{2,12}")
+        .firstMatch(in: name, range: NSRange(location: 0, length: name.utf16.count)),
+       let r = Range(m.range, in: name) { return String(name[r]) }
+    return nil
 }
 
 struct ContentView: View {
@@ -56,7 +93,7 @@ extension ContentView {
         private let stepClamp: Float = 0.03
         private let quant: Float     = 0.01
         private let mergeDistance: Float = 0.30
-        @State private var planeDragBlockUntil: CFTimeInterval = 0   // block drag for 1 s after rotate
+        @State private var planeDragBlockUntil: CFTimeInterval = 0
 
         // UI attachments
         @State private var confirmUI: Entity?
@@ -235,7 +272,7 @@ extension ContentView {
                         Task { try? await Task.sleep(nanoseconds: 300_000_000); isManipulatingPlane = false; if let id = activeID { updateConfirmUI(for: id) } }
                     }
             )
-            // Move plane (blocked while rotating and for 1 s after)
+            // Move plane
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0).targetedToAnyEntity()
                     .onChanged { value in
@@ -334,10 +371,10 @@ extension ContentView {
                         guard confirmed,
                               let model = draggableRoot(from: value.entity) else { cleanupDrag(); return }
                         cleanupDrag()
-                        if !anchorIfColliding(model) { returnToOrigin(model) }   // always return if not anchored
+                        if !anchorIfColliding(model) { returnToOrigin(model) }
                     }
             )
-            // Tap info
+            // Tap info (reads registered EugeneComponent if present)
             .simultaneousGesture(
                 SpatialTapGesture().targetedToAnyEntity()
                     .onEnded { value in
@@ -347,6 +384,7 @@ extension ContentView {
                             infoTargetName = nil
                             infoPanel?.isEnabled = false
                         } else {
+                            ensureEugeneDataIfMissing(on: model)
                             infoTargetName = model.name
                             infoText = makeInfoText(for: model)
                             placeInfoPanel(above: model)
@@ -356,7 +394,7 @@ extension ContentView {
             )
         }
 
-        // Confirm
+        // Confirm placement → load lab
         private func confirmPlacement() {
             guard let id = activeID, let item = items[id] else { return }
             confirmed = true
@@ -488,9 +526,26 @@ extension ContentView {
             ui.isEnabled = (!isManipulatingPlane && !confirmed)
         }
 
-        // Info panel
+        // Info panel text — prefer registered EugeneComponent
         private func makeInfoText(for model: Entity) -> String {
             let name = model.name.isEmpty ? "Item" : model.name
+
+            if let c = findEugeneComponent(near: model) {
+                // Reads the RC-authored values because the component was registered pre-load.
+                let code = c.code
+                let gen  = c.generation
+                return infoBlock(name: name, code: code, gen: gen, at: model)
+            }
+
+            // Fallbacks if RC component is absent
+            let code = model.components[EugeneData.self]?.code
+                ?? parseCodeFromName(model.name)
+                ?? "AaBb"
+            let gen  = model.components[EugeneData.self]?.generation ?? 0
+            return infoBlock(name: name, code: code, gen: gen, at: model)
+        }
+
+        private func infoBlock(name: String, code: String, gen: Int, at model: Entity) -> String {
             let p = model.position(relativeTo: nil)
             var dStr = "n/a"
             if let dev = world.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
@@ -500,8 +555,14 @@ extension ContentView {
                 dStr = String(format: "%.2f m", simd_length(p - cam))
             }
             let pos = String(format: "x: %.2f  y: %.2f  z: %.2f", p.x, p.y, p.z)
-            return "\(name)\nPosition: \(pos)\nDistance: \(dStr)"
+            return """
+            \(name)
+            Code: \(code)   Gen: \(gen)
+            Position: \(pos)
+            Distance: \(dStr)
+            """
         }
+
         private func placeInfoPanel(above model: Entity) {
             guard let panel = infoPanel else { return }
             panel.setParent(model); panel.position = [0, 0.18, 0]
@@ -551,6 +612,14 @@ extension ContentView {
             }
             dfs(root)
         }
+        private func ensureEugeneDataIfMissing(on e: Entity) {
+            if e.components.has(EugeneData.self) { return }
+            let code = findEugeneComponent(near: e)?.code
+                ?? parseCodeFromName(e.name)
+                ?? "AaBb"
+            let gen  = findEugeneComponent(near: e)?.generation ?? 0
+            e.components.set(EugeneData(code: code, generation: gen))
+        }
         private func markEugeneSubtreesDraggable(under root: Entity) {
             var eugeneRoots: [Entity] = []
 
@@ -562,7 +631,7 @@ extension ContentView {
             }
             func collect(_ e: Entity) {
                 if isEugeneName(e.name) {
-                    var top: Entity = e; var p = e.parent
+                    var top: Entity = e; var p: Entity? = e.parent
                     while let pp = p, isEugeneName(pp.name) { top = pp; p = pp.parent }
                     if !eugeneRoots.contains(where: { $0 === top }) { eugeneRoots.append(top) }
                 }
@@ -576,7 +645,7 @@ extension ContentView {
 
             var used = Set<String>()
             func uniqueName(_ base: String) -> String {
-                var n = base.isEmpty ? "eugene" : base
+                let n = base.isEmpty ? "eugene" : base
                 var idx = 1
                 var candidate = n
                 while used.contains(candidate) {
@@ -595,6 +664,8 @@ extension ContentView {
                 r.generateCollisionShapes(recursive: true)
                 r.components.set(InputTargetComponent())
 
+                ensureEugeneDataIfMissing(on: r)
+
                 func tagDesc(_ e: Entity) {
                     if let m = e as? ModelEntity {
                         if m.components[CollisionComponent.self] == nil { m.generateCollisionShapes(recursive: false) }
@@ -607,6 +678,7 @@ extension ContentView {
                 originalWorld[r.name] = r.transformMatrix(relativeTo: nil)
             }
         }
+
         private func findFirstDescendant(containingAnyOf tokens: [String], under root: Entity) -> Entity? {
             var stack: [Entity] = [root]
             while let e = stack.popLast() {
