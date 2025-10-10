@@ -5,8 +5,7 @@ import RealityKitContent
 @main
 struct EugenePlacementApp: App {
     init() {
-        // Register custom component before any asset loads.
-        EugeneComponent.registerComponent()
+        EugeneComponent.registerComponent() // register before any asset loads
     }
 
     var body: some SwiftUI.Scene {

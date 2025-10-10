@@ -9,13 +9,12 @@ import Foundation
 
 // MARK: - Components
 struct Draggable: Component {}
-
 struct EugeneData: Component, Codable {
     var code: String
     var generation: Int
 }
 
-// MARK: - Helpers
+// MARK: - Top helpers
 private func draggableRoot(from e: Entity) -> Entity? {
     var cur: Entity? = e, last: Entity?
     while let c = cur { if c.components.has(Draggable.self) { last = c }; cur = c.parent }
@@ -52,6 +51,7 @@ private func parseCodeFromName(_ name: String) -> String? {
     return nil
 }
 
+// MARK: - Entry
 struct ContentView: View {
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     var body: some View {
@@ -98,9 +98,10 @@ extension ContentView {
         @State private var infoText = ""
         @State private var infoTargetName: String?
 
-        // Machine UI text
+        // Machine UI text + state
         @State private var m1Text: String = "Machine 1: Empty"
         @State private var m2Text: String = "Machine 2: Empty"
+        @State private var canGenerate = false
 
         // Lab
         private let labAssetName = "Laboratory"
@@ -118,6 +119,9 @@ extension ContentView {
         struct MachineTarget { let name: String; let collisionEntity: Entity; let anchorEntity: Entity? }
         @State private var machines: [MachineTarget] = []
         @State private var occupiedByAnchor: [ObjectIdentifier: Entity] = [:]
+
+        // Counter for unique child names
+        @State private var childCounter = 1
 
         var body: some View {
             RealityView { content, attachments in
@@ -164,6 +168,9 @@ extension ContentView {
                         }
                         .padding(8)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        Button("Generate Offspring") { spawnOffspring() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!canGenerate)
                     }
                     .padding(12)
                     .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -175,7 +182,7 @@ extension ContentView {
                 guard auth[.worldSensing] == .allowed else { return }
                 try? await session.run([planes, world])
 
-                // Load preview
+                // Load preview hologram
                 Task {
                     if let ghost = try? await Entity(named: labAssetName, in: realityKitContentBundle) {
                         ghost.name = "PreviewLab"
@@ -398,6 +405,40 @@ extension ContentView {
             )
         }
 
+        // MARK: - Focus / UI helpers
+        private func setActive(_ id: UUID) {
+            if activeID == id { return }
+            if let prev = activeID, let p = items[prev] {
+                p.quad.model?.materials = [baseMat]
+                p.quad.isEnabled = false
+            }
+            guard let item = items[id] else { return }
+            item.quad.model?.materials = [focusMat]
+            item.quad.isEnabled = true
+            activeID = id
+            updateConfirmUI(for: id)
+            if let ghost = previewLab, !confirmed {
+                ghost.setParent(item.anchor)
+                ghost.transform = .identity
+                ghost.isEnabled = true
+            }
+        }
+        private func clearActive() {
+            guard let prev = activeID, let p = items[prev] else { return }
+            p.quad.model?.materials = [baseMat]
+            p.quad.isEnabled = false
+            activeID = nil
+            confirmUI?.isEnabled = false
+            previewLab?.isEnabled = false
+            previewLab?.setParent(root)
+        }
+        private func updateConfirmUI(for id: UUID) {
+            guard let item = items[id], let ui = confirmUI else { return }
+            ui.setParent(item.anchor)
+            ui.position = [0, 0.40, 0]
+            ui.isEnabled = (!isManipulatingPlane && !confirmed)
+        }
+
         // Confirm placement → load lab
         private func confirmPlacement() {
             guard let id = activeID, let item = items[id] else { return }
@@ -532,28 +573,118 @@ extension ContentView {
                     m2Text = "Machine 2: \(code) • Gen \(gen)"
                 } else { m2Text = "Machine 2: Empty" }
             }
+            canGenerate = machines.indices.contains(0) && machines.indices.contains(1)
+                          && occupant(of: machines[0]) != nil && occupant(of: machines[1]) != nil
         }
 
-        // Focus/UI
-        private func setActive(_ id: UUID) {
-            if activeID == id { return }
-            if let prev = activeID, let p = items[prev] { p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false }
-            if let p = items[id] {
-                p.quad.model?.materials = [focusMat]; p.quad.isEnabled = true
-                activeID = id; updateConfirmUI(for: id)
-                if let ghost = previewLab, !confirmed { ghost.setParent(p.anchor); ghost.transform = .identity; ghost.isEnabled = true }
+        // Offspring generation (+ return parents)
+        private func spawnOffspring() {
+            guard canGenerate, let lab = labRoot else { return }
+            guard let p1 = occupant(of: machines[0]), let p2 = occupant(of: machines[1]) else { return }
+
+            let (c1, g1) = codeGen(for: p1)
+            let (c2, g2) = codeGen(for: p2)
+            let childCode = punnettChildCode(parent1: c1, parent2: c2)
+            let childGen  = max(g1, g2) + 1
+
+            let genAnchor = lab.findEntity(named: "generation_anchor")
+                ?? lab.findEntity(named: "Generation_Anchor")
+                ?? lab
+
+            let template = (draggableRoot(from: p1) ?? draggableRoot(from: p2)) ?? firstEugeneRoot(under: lab)
+            guard let source = template else { return }
+
+            let child = source.clone(recursive: true)
+            child.name = uniqueChildName(base: "eugene_child_\(childCounter)"); childCounter += 1
+
+            let worldT = genAnchor.transformMatrix(relativeTo: nil)
+            child.setParent(root)
+            child.setTransformMatrix(worldT, relativeTo: nil)
+            genAnchor.addChild(child)
+            child.transform = .identity
+
+            child.components.set(Draggable())
+            ensureHittableRecursively(child)
+            if child.components.has(EugeneComponent.self) {
+                child.components.set(EugeneComponent(code: childCode, generation: childGen))
+            }
+            child.components.set(EugeneData(code: childCode, generation: childGen))
+            originalWorld[child.name] = child.transformMatrix(relativeTo: nil)
+
+            // Return both parents to original positions and clear machines
+            if let m1 = machines.first, let parent1 = occupant(of: m1) {
+                let wt = parent1.transformMatrix(relativeTo: nil)
+                parent1.setParent(root); parent1.setTransformMatrix(wt, relativeTo: nil)
+                setOccupant(of: m1, to: nil)
+                returnToOrigin(parent1)
+            }
+            if machines.count > 1 {
+                let m2 = machines[1]
+                if let parent2 = occupant(of: m2) {
+                    let wt = parent2.transformMatrix(relativeTo: nil)
+                    parent2.setParent(root); parent2.setTransformMatrix(wt, relativeTo: nil)
+                    setOccupant(of: m2, to: nil)
+                    returnToOrigin(parent2)
+                }
+            }
+            updateMachineUI()
+
+            if infoTargetName == child.name {
+                infoText = makeInfoText(for: child)
+                placeInfoPanel(above: child)
             }
         }
-        private func clearActive() {
-            guard let prev = activeID, let p = items[prev] else { return }
-            p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false
-            activeID = nil; confirmUI?.isEnabled = false
-            previewLab?.isEnabled = false; previewLab?.setParent(root)
+
+        private func firstEugeneRoot(under root: Entity) -> Entity? {
+            var stack: [Entity] = [root]
+            while let e = stack.popLast() {
+                if e.name.lowercased().contains("eugene") { return e }
+                stack.append(contentsOf: e.children)
+            }
+            return nil
         }
-        private func updateConfirmUI(for id: UUID) {
-            guard let item = items[id], let ui = confirmUI else { return }
-            ui.setParent(item.anchor); ui.position = [0, 0.40, 0]
-            ui.isEnabled = (!isManipulatingPlane && !confirmed)
+        private func uniqueChildName(base: String) -> String {
+            var name = base
+            var n = 1
+            while originalWorld[name] != nil || (labRoot?.findEntity(named: name) != nil) {
+                n += 1
+                name = "\(base)_\(n)"
+            }
+            return name
+        }
+        private func ensureHittableRecursively(_ e: Entity) {
+            if let m = e as? ModelEntity {
+                if m.components[CollisionComponent.self] == nil { m.generateCollisionShapes(recursive: false) }
+                m.components.set(InputTargetComponent())
+            }
+            for c in e.children { ensureHittableRecursively(c) }
+        }
+        private func punnettChildCode(parent1: String, parent2: String) -> String {
+            let loci1 = splitIntoLoci(parent1)
+            let loci2 = splitIntoLoci(parent2)
+            let count = min(loci1.count, loci2.count)
+            var out = ""
+            for i in 0..<count {
+                let a = loci1[i], b = loci2[i]
+                let alleleA = (Bool.random() ? a.first! : a.last!)
+                let alleleB = (Bool.random() ? b.first! : b.last!)
+                out.append(alleleA); out.append(alleleB)
+            }
+            return out.isEmpty ? "Aa" : out
+        }
+        private func splitIntoLoci(_ code: String) -> [String] {
+            let letters = code.filter { $0.isLetter }
+            var loci: [String] = []
+            var i = letters.startIndex
+            while i < letters.endIndex {
+                let j = letters.index(i, offsetBy: 1, limitedBy: letters.endIndex) ?? letters.endIndex
+                if j < letters.endIndex {
+                    let k = letters.index(after: j)
+                    loci.append(String([letters[i], letters[j]]))
+                    i = k
+                } else { break }
+            }
+            return loci
         }
 
         // Info panel
@@ -641,16 +772,15 @@ extension ContentView {
             e.components.set(EugeneData(code: code, generation: gen))
         }
 
-        // Tag all Eugène subtrees as draggable and ensure they carry code/gen.
+        // Mark eugene subtrees draggable
         private func markEugeneSubtreesDraggable(under root: Entity) {
             var eugeneRoots: [Entity] = []
 
             func isEugeneName(_ s: String) -> Bool {
                 let l = s.lowercased()
-                return l.hasPrefix("eugene") ||
-                       l.contains("eugene_") ||
-                       l.contains("eugene 1") || l.contains("eugene 2") || l.contains("eugene 3") ||
-                       l.contains("eugene 4") || l.contains("eugene 5")
+                return l.hasPrefix("eugene") || l.contains("eugene_")
+                    || l.contains("eugene 1") || l.contains("eugene 2") || l.contains("eugene 3")
+                    || l.contains("eugene 4") || l.contains("eugene 5")
             }
             func collect(_ e: Entity) {
                 if isEugeneName(e.name) {
@@ -672,10 +802,7 @@ extension ContentView {
                 let n = base.isEmpty ? "eugene" : base
                 var idx = 1
                 var candidate = n
-                while used.contains(candidate) {
-                    idx += 1
-                    candidate = "\(n)_\(idx)"
-                }
+                while used.contains(candidate) { idx += 1; candidate = "\(n)_\(idx)" }
                 used.insert(candidate)
                 return candidate
             }
