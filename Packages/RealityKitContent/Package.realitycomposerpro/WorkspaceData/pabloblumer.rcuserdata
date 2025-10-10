@@ -2,8 +2,7 @@
   "advancedEditorSelectedIdentifier" : "ProjectBrowser",
   "openSceneRelativePaths" : [
     "Eugene.usda",
-    "Laboratory.usda",
-    "Eugene.usd"
+    "Laboratory.usda"
   ],
   "recentIdentifiers" : {
     "0F1A11FA-2FEB-4752-994E-244892BAF738" : [
@@ -12,6 +11,28 @@
   },
   "sceneCameraHistory" : {
     "0F1A11FA-2FEB-4752-994E-244892BAF738" : [
+      {
+        "date" : 781801600.900896,
+        "title" : "Untitled",
+        "transform" : [
+          0.9997048,
+          3.8189314e-09,
+          -0.024299545,
+          0,
+          -0.008270649,
+          0.9402946,
+          -0.34026107,
+          0,
+          0.022848768,
+          0.3403616,
+          0.940017,
+          0,
+          -0.029026628,
+          0.31267568,
+          0.9459232,
+          1
+        ]
+      },
       {
         "date" : 781711425.020735,
         "title" : "Untitled",
@@ -207,28 +228,6 @@
           -0.21695675,
           0.5298529,
           0.9565158,
-          1
-        ]
-      },
-      {
-        "date" : 781710605.892003,
-        "title" : "Untitled",
-        "transform" : [
-          1,
-          0,
-          0,
-          0,
-          0,
-          0.7071069,
-          -0.70710677,
-          0,
-          0,
-          0.70710677,
-          0.7071069,
-          0,
-          -0.23268655,
-          0.5789157,
-          0.93142796,
           1
         ]
       }

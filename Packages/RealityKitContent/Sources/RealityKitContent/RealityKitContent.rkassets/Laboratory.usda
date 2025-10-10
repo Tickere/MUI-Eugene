@@ -5,7 +5,7 @@
     upAxis = "Y"
 )
 
-reorder rootPrims = ["Root", "Generated_anchor_1", "Generated_anchor_2", "Generated_anchor_3", "Generated_anchor_4"]
+reorder rootPrims = ["Root", "Eugene_anchor_1", "Eugene_anchor_2", "Eugene_anchor_3", "Eugene_anchor_4"]
 
 def Xform "Root"
 {
@@ -374,7 +374,7 @@ def Xform "Root"
     }
 }
 
-def Xform "Generated_anchor_1" (
+def Xform "Eugene_anchor_1" (
     active = true
 )
 {
@@ -386,7 +386,7 @@ def Xform "Generated_anchor_1" (
     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 }
 
-def Xform "Generated_anchor_2" (
+def Xform "Eugene_anchor_2" (
     active = true
 )
 {
@@ -398,7 +398,7 @@ def Xform "Generated_anchor_2" (
     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 }
 
-def Xform "Generated_anchor_3" (
+def Xform "Eugene_anchor_3" (
     active = true
 )
 {
@@ -410,7 +410,7 @@ def Xform "Generated_anchor_3" (
     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 }
 
-def Xform "Generated_anchor_4" (
+def Xform "Eugene_anchor_4" (
     active = true
 )
 {
