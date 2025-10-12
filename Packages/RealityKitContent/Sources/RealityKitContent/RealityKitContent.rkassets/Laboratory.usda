@@ -9,7 +9,7 @@ reorder rootPrims = ["Root", "Eugene_anchor_1", "Eugene_anchor_2", "Eugene_ancho
 
 def Xform "Root"
 {
-    reorder nameChildren = ["Machine", "Eugene_1", "Eugene_2", "Eugene_3", "Eugene_4", "Eugene_5", "Anchoring", "machine_2_anchor"]
+    reorder nameChildren = ["Machine", "Eugene_1", "Eugene_2", "Eugene_2", "Eugene_4", "Eugene_3", "Anchoring", "machine_2_anchor"]
     rel material:binding = None (
         bindMaterialAs = "weakerThanDescendants"
     )
@@ -63,46 +63,6 @@ def Xform "Root"
             float3 xformOp:scale = (0.0005, 0.0005, 0.0005)
             double3 xformOp:translate = (0.0019037127494812012, 0.04021205008029938, -0.009379923343658447)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-    }
-
-    def "Eugene_2" (
-        active = true
-        references = @Eugene.usda@
-    )
-    {
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.4919517, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
-        {
-            string code = "AaBbCc"
-            uniform token info:id = "RealityKitContent.EugeneComponent"
-        }
-
-        def RealityKitComponent "InputTarget"
-        {
-            uniform token info:id = "RealityKit.InputTarget"
-        }
-
-        def RealityKitComponent "Collider"
-        {
-            uint group = 1
-            uniform token info:id = "RealityKit.Collider"
-            uint mask = 4294967295
-            token type = "Default"
-
-            def RealityKitStruct "Shape"
-            {
-                float3 extent = (0.04, 0.09, 0.04)
-                token shapeType = "Box"
-
-                def RealityKitStruct "pose"
-                {
-                    float3 position = (0, 0.049999997, -9.313226e-10)
-                }
-            }
         }
     }
 
@@ -234,91 +194,7 @@ def Xform "Root"
         }
     }
 
-    def "Eugene_4" (
-        active = true
-        references = @Eugene.usda@
-    )
-    {
-        float2 ui:nodegraph:node:pos = (40, 40)
-        int ui:nodegraph:node:stackingOrder = 2
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.31243443, 0, 0.37632966)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
-        {
-            string code = "aaBBcc"
-            uniform token info:id = "RealityKitContent.EugeneComponent"
-        }
-
-        def RealityKitComponent "InputTarget"
-        {
-            uniform token info:id = "RealityKit.InputTarget"
-        }
-
-        def RealityKitComponent "Collider"
-        {
-            uint group = 1
-            uniform token info:id = "RealityKit.Collider"
-            uint mask = 4294967295
-            token type = "Default"
-
-            def RealityKitStruct "Shape"
-            {
-                float3 extent = (0.04, 0.09, 0.04)
-                token shapeType = "Box"
-
-                def RealityKitStruct "pose"
-                {
-                    float3 position = (0, 0.049999997, -9.313226e-10)
-                }
-            }
-        }
-    }
-
     def "Eugene_3" (
-        active = true
-        references = @Eugene.usda@
-    )
-    {
-        float2 ui:nodegraph:node:pos = (20, 20)
-        int ui:nodegraph:node:stackingOrder = 1
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.18854177, 0, 0.5759025)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
-        {
-            string code = "AAbbcc"
-            uniform token info:id = "RealityKitContent.EugeneComponent"
-        }
-
-        def RealityKitComponent "InputTarget"
-        {
-            uniform token info:id = "RealityKit.InputTarget"
-        }
-
-        def RealityKitComponent "Collider"
-        {
-            uint group = 1
-            uniform token info:id = "RealityKit.Collider"
-            uint mask = 4294967295
-            token type = "Default"
-
-            def RealityKitStruct "Shape"
-            {
-                float3 extent = (0.04, 0.09, 0.04)
-                token shapeType = "Box"
-
-                def RealityKitStruct "pose"
-                {
-                    float3 position = (0, 0.049999997, -9.313226e-10)
-                }
-            }
-        }
-    }
-
-    def "Eugene_5" (
         active = true
         references = @Eugene.usda@
     )
@@ -326,7 +202,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (60, 60)
         int ui:nodegraph:node:stackingOrder = 3
         float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0, 0, 0.48108512)
+        float3 xformOp:translate = (-0.12736028, 0, 0.38223332)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
@@ -370,6 +246,48 @@ def Xform "Root"
             float2 bounds = (0.2, 0.2)
             token classification = "Table"
             token type = "Plane"
+        }
+    }
+
+    def "Eugene_2" (
+        active = true
+        references = @Eugene.usda@
+    )
+    {
+        float2 ui:nodegraph:node:pos = (20, 20)
+        int ui:nodegraph:node:stackingOrder = 1
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (0.20182827, 0, 0.40953502)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
+        {
+            string code = "AAbbcc"
+            uniform token info:id = "RealityKitContent.EugeneComponent"
+        }
+
+        def RealityKitComponent "InputTarget"
+        {
+            uniform token info:id = "RealityKit.InputTarget"
+        }
+
+        def RealityKitComponent "Collider"
+        {
+            uint group = 1
+            uniform token info:id = "RealityKit.Collider"
+            uint mask = 4294967295
+            token type = "Default"
+
+            def RealityKitStruct "Shape"
+            {
+                float3 extent = (0.04, 0.09, 0.04)
+                token shapeType = "Box"
+
+                def RealityKitStruct "pose"
+                {
+                    float3 position = (0, 0.049999997, -9.313226e-10)
+                }
+            }
         }
     }
 }

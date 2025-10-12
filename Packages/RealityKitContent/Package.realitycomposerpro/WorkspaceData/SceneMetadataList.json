@@ -3,6 +3,16 @@
     "objectMetadataList" : [
       [
         "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Machine",
+        "generation_anchor"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
         "Root"
       ],
       {

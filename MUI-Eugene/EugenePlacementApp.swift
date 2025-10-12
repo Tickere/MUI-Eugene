@@ -4,9 +4,7 @@ import RealityKitContent
 
 @main
 struct EugenePlacementApp: App {
-    init() {
-        EugeneComponent.registerComponent() // register before any asset loads
-    }
+    init() { EugeneComponent.registerComponent() }
 
     var body: some SwiftUI.Scene {
         WindowGroup { ContentView() }
