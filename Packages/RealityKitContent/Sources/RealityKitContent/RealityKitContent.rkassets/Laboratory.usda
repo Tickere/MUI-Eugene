@@ -119,13 +119,13 @@ def Xform "Root"
         {
             quatf xformOp:orient = (1, 0, 0, 0)
             float3 xformOp:scale = (1, 1, 1)
-            float3 xformOp:translate = (-0.15, 0, 0)
+            float3 xformOp:translate = (-0.15, 0, 0.08)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
             def RealityKitComponent "HierarchicalFade"
             {
                 uniform token info:id = "RealityKit.HierarchicalFade"
-                float opacity = 0.3306349
+                float opacity = 0
             }
 
             def RealityKitComponent "Collider"
@@ -159,7 +159,7 @@ def Xform "Root"
         {
             quatf xformOp:orient = (1, 0, 0, 0)
             float3 xformOp:scale = (1, 1, 1)
-            float3 xformOp:translate = (0, 0, 0.2)
+            float3 xformOp:translate = (0, 0.06, 0.2)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
         }
 
@@ -170,13 +170,13 @@ def Xform "Root"
         {
             quatf xformOp:orient = (1, 0, 0, 0)
             float3 xformOp:scale = (1, 1, 1)
-            float3 xformOp:translate = (0.15, 0, 0)
+            float3 xformOp:translate = (0.15, 0, 0.08)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
             def RealityKitComponent "HierarchicalFade"
             {
                 uniform token info:id = "RealityKit.HierarchicalFade"
-                float opacity = 0.33484164
+                float opacity = 0
             }
 
             def RealityKitComponent "InputTarget"
@@ -210,7 +210,7 @@ def Xform "Root"
         {
             quatf xformOp:orient = (1, 0, 0, 0)
             float3 xformOp:scale = (1, 1, 1)
-            float3 xformOp:translate = (0, 0.3, 0)
+            float3 xformOp:translate = (0, 0.34, 0.13)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
         }
 
@@ -220,7 +220,7 @@ def Xform "Root"
         {
             quatf xformOp:orient = (1, 0, 0, 0)
             float3 xformOp:scale = (1, 1, 1)
-            float3 xformOp:translate = (-0.15, 0.2, 0)
+            float3 xformOp:translate = (-0.13, 0.06, 0.08)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
         }
 
@@ -230,7 +230,7 @@ def Xform "Root"
         {
             quatf xformOp:orient = (1, 0, 0, 0)
             float3 xformOp:scale = (1, 1, 1)
-            float3 xformOp:translate = (0.15, 0.2, 0)
+            float3 xformOp:translate = (0.13, 0.06, 0.08)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
         }
     }
@@ -414,7 +414,7 @@ def Xform "Root"
         }
 
         def "Eugene_pickup" (
-            active = true
+            active = false
             references = @Eugene_pickup.usdc@
         )
         {
@@ -463,6 +463,20 @@ def Xform "Root"
         active = true
     )
     {
+    }
+
+    def "machine_eugene" (
+        active = true
+        customData = {
+            float3 rotationEulerHint = (1.570797, 4.712389, 0)
+        }
+        prepend references = @machine_eugene.usdc@
+    )
+    {
+        quatf xformOp:orient = (-0.49999976, 0.50000024, 0.49999976, 0.50000024)
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }
 

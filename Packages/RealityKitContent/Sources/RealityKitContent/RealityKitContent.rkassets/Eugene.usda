@@ -69,7 +69,7 @@ def Xform "Root"
     }
 
     def "Eugene_pickup" (
-        active = true
+        active = false
         customData = {
             float3 rotationEulerHint = (-1.570796, 0, 0)
         }
@@ -88,7 +88,7 @@ def Xform "Root"
     }
 
     def "Eugene_walking" (
-        active = true
+        active = false
         prepend references = @Eugene_walking.usdc@
     )
     {

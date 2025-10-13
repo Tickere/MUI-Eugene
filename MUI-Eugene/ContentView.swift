@@ -491,7 +491,7 @@ extension ContentView {
         }
         private func updateConfirmUI(for id: UUID) {
             guard let item = items[id], let ui = confirmUI else { return }
-            ui.setParent(item.anchor); ui.position = [0, 0.40, 0]
+            ui.setParent(item.anchor); ui.position = [0, 0.60, 0]
             ui.isEnabled = (!isManipulatingPlane && !confirmed)
         }
 
