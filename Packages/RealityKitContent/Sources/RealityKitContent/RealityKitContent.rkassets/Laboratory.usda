@@ -5,25 +5,31 @@
     upAxis = "Y"
 )
 
+reorder rootPrims = ["Root", "Eugene_anchor_1", "Eugene_anchor_2", "Eugene_anchor_3", "Eugene_anchor_4"]
+
 def Xform "Root"
 {
-    reorder nameChildren = ["Machine", "Eugene_1", "Eugene_2", "Eugene_3", "Eugene_4", "Eugene_5", "Anchoring", "machine_2_anchor"]
+    reorder nameChildren = ["Machine", "Eugene_1", "Eugene_3", "Eugene_2", "Eugene_pickup", "Anchoring", "idle", "Group", "pickup"]
     rel material:binding = None (
         bindMaterialAs = "weakerThanDescendants"
     )
 
     def "Eugene_1" (
         active = true
+        customData = {
+            float3 rotationEulerHint = (0, 0, 0)
+        }
         references = @Eugene.usda@
     )
     {
+        quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (-0.47876582, 0, 0.31118333)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "AABBCC"
+            string code = "AaBbCc"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 
@@ -50,43 +56,52 @@ def Xform "Root"
                 }
             }
         }
-    }
 
-    def "Eugene_2" (
-        active = true
-        references = @Eugene.usda@
-    )
-    {
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.4919517, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
+        over "Armature_Eugene"
         {
-            string code = "aabbcc"
-            uniform token info:id = "RealityKitContent.EugeneComponent"
+            quatf xformOp:orient = (1, 0, 0, 0)
+            float3 xformOp:scale = (0.0005, 0.0005, 0.0005)
+            double3 xformOp:translate = (0.0019037127494812012, 0.04021205008029938, -0.009379923343658447)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
         }
 
-        def RealityKitComponent "InputTarget"
+        over "eugene_ui_anchor"
         {
-            uniform token info:id = "RealityKit.InputTarget"
+            float3 xformOp:translate = (0, 0.15, 0)
         }
 
-        def RealityKitComponent "Collider"
+        over "Capsule" (
+            references = None
+        )
         {
-            uint group = 1
-            uniform token info:id = "RealityKit.Collider"
-            uint mask = 4294967295
-            token type = "Default"
-
-            def RealityKitStruct "Shape"
+            over "DefaultMaterial"
             {
-                float3 extent = (0.04, 0.09, 0.04)
-                token shapeType = "Box"
+                token outputs:mtlx:surface
+                token outputs:realitykit:vertex
+            }
 
-                def RealityKitStruct "pose"
+            over "WalkCTRL_01"
+            {
+                over "Armature_Eugene_001"
                 {
-                    float3 position = (0, 0.049999997, -9.313226e-10)
+                    def Xform "eugene_ui_anchor" (
+                        active = true
+                        prepend references = </Root/Eugene_1/eugene_ui_anchor>
+                    )
+                    {
+                        float2 ui:nodegraph:node:pos = (20, 20)
+                        int ui:nodegraph:node:stackingOrder = 1
+                        quatf xformOp:orient = (0.5760456, -1.30853e-7, -0.81741756, 1.287886e-7)
+                        float3 xformOp:scale = (2000.0004, 2000.0005, 2000.0004)
+                        float3 xformOp:translate = (54.252655, 218.0065, 11.255737)
+                        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                        def RealityKitComponent "Billboard"
+                        {
+                            float blendFactor = 0
+                            uniform token info:id = "RealityKit.Billboard"
+                        }
+                    }
                 }
             }
         }
@@ -225,16 +240,15 @@ def Xform "Root"
         references = @Eugene.usda@
     )
     {
-        float2 ui:nodegraph:node:pos = (20, 20)
-        int ui:nodegraph:node:stackingOrder = 1
+        float2 ui:nodegraph:node:pos = (60, 60)
+        int ui:nodegraph:node:stackingOrder = 3
         float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.18854177, 0, 0.5759025)
+        float3 xformOp:translate = (-0.12736028, 0, 0.38223332)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
         {
-            string code = "AaBbCc"
-            int generation = 2
+            string code = "aabbCC"
             uniform token info:id = "RealityKitContent.EugeneComponent"
         }
 
@@ -263,9 +277,7 @@ def Xform "Root"
         }
     }
 
-    def RealityKitComponent "Anchoring" (
-        active = false
-    )
+    def RealityKitComponent "Anchoring"
     {
         uniform token info:id = "RealityKit.Anchoring"
 
@@ -278,52 +290,227 @@ def Xform "Root"
         }
     }
 
-    def Xform "Eugene_anchor_1" (
-        active = true
-    )
+    def RealityKitTimeline "idle"
     {
-        float2 ui:nodegraph:node:pos = (40, 40)
-        int ui:nodegraph:node:stackingOrder = 2
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.27387738, 0, 0.29198855)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+        def RealityKitTrack "Track"
+        {
+            def RealityKitAction "Animation"
+            {
+                string actionKind = "animation"
+                string animation = "default subtree animation"
+                int blendLayer = 500
+                double duration = 2.433333430439234
+                uniform token info:id = "F0FACF2E-B2BF-4C6A-BC21-7D719916DBA9"
+                double loopCount = 0
+                bool separateAnimatedValue = 1
+                double startTime = 0
+                rel target = </Root/Group/Eugene_2>
+
+                def RealityKitStruct "handoffType"
+                {
+                }
+            }
+        }
     }
 
-    def Xform "Eugene_anchor_2" (
+    def Xform "Group" (
         active = true
     )
     {
-        float2 ui:nodegraph:node:pos = (60, 60)
-        int ui:nodegraph:node:stackingOrder = 3
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.0799856, 0, 0.29198855)
+        reorder nameChildren = ["Eugene_2", "Eugene_pickup"]
+        float3 xformOp:translate = (0.20183, 0, 0.40954)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        def "Eugene_2" (
+            active = true
+            references = @Eugene_idle.usdc@
+        )
+        {
+            reorder nameChildren = ["Armature_Eugene_002", "_materials", "IdleHappy", "eugene_ui_anchor", "RealityKitContent_EugeneComponent", "InputTarget", "Collider", "RCP_BehaviorsContainer", "OnAddedToScene", "AnimationLibrary"]
+            float2 ui:nodegraph:node:pos = (20, 20)
+            int ui:nodegraph:node:stackingOrder = 1
+            quatf xformOp:orient = (0.70710677, -0.70710677, 0, 0)
+            float3 xformOp:scale = (0.9999997, 0.9999997, 0.9999997)
+            float3 xformOp:translate = (-0.0000017285347, 0, -0.000004976988)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def RealityKitCustomComponent "RealityKitContent_EugeneComponent"
+            {
+                string code = "AAbbcc"
+                uniform token info:id = "RealityKitContent.EugeneComponent"
+            }
+
+            def RealityKitComponent "InputTarget"
+            {
+                uniform token info:id = "RealityKit.InputTarget"
+            }
+
+            def RealityKitComponent "Collider"
+            {
+                uint group = 1
+                uniform token info:id = "RealityKit.Collider"
+                uint mask = 4294967295
+                token type = "Default"
+
+                def RealityKitStruct "Shape"
+                {
+                    float3 extent = (0.04, 0.09, 0.04)
+                    token shapeType = "Box"
+
+                    def RealityKitStruct "pose"
+                    {
+                        float3 position = (0, 0.049999997, -9.313226e-10)
+                    }
+                }
+            }
+
+            def RealityKitComponent "RCP_BehaviorsContainer"
+            {
+                rel behaviors = </Root/Group/Eugene_2/OnAddedToScene>
+                uniform token info:id = "RCP.BehaviorsContainer"
+            }
+
+            def Preliminary_Behavior "OnAddedToScene"
+            {
+                rel actions = </Root/Group/Eugene_2/OnAddedToScene/Action>
+                uniform bool exclusive
+                rel triggers = </Root/Group/Eugene_2/OnAddedToScene/Trigger>
+
+                def Preliminary_Trigger "Trigger"
+                {
+                    rel affectedObjects = </Root/Group/Eugene_2>
+                    token info:id = "SceneTransition"
+                }
+
+                def Preliminary_Action "Action"
+                {
+                    rel affectedObjects = </Root>
+                    rel animationLibraryKey = </Root/idle>
+                    rel animationLibraryKeyOverrideKey = </Root/Group/Eugene_2/OnAddedToScene/Trigger>
+                    token info:id = "PlayTimeline"
+                    int loops = 0
+                    int performCount = 1
+                    token type = "serial"
+                }
+            }
+
+            def RealityKitComponent "AnimationLibrary"
+            {
+                token info:id = "RealityKit.AnimationLibrary"
+
+                def RealityKitAnimationFile "default_subtree_animation"
+                {
+                    uniform bool looping = 1
+                    uniform string name = "default subtree animation"
+                }
+            }
+
+            over "Armature_Eugene_002"
+            {
+                over "B_eyes_square_001"
+                {
+                }
+            }
+        }
+
+        def "Eugene_pickup" (
+            active = true
+            references = @Eugene_pickup.usdc@
+        )
+        {
+            quatf xformOp:orient = (6.123235e-17, 4.32978e-17, 0.70710677, 0.70710677)
+            float3 xformOp:scale = (0.9999997, 0.9999997, 0.9999997)
+            float3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def RealityKitComponent "AnimationLibrary"
+            {
+                token info:id = "RealityKit.AnimationLibrary"
+
+                def RealityKitAnimationFile "default_subtree_animation"
+                {
+                    uniform bool looping = 1
+                    uniform string name = "default subtree animation"
+                }
+            }
+        }
     }
 
-    def Xform "Eugene_anchor_3" (
-        active = true
-    )
+    def RealityKitTimeline "pickup"
     {
-        float2 ui:nodegraph:node:pos = (80, 80)
-        int ui:nodegraph:node:stackingOrder = 4
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.14399697, 0, 0.29198855)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+        def RealityKitTrack "Track"
+        {
+            def RealityKitAction "Animation"
+            {
+                string actionKind = "animation"
+                string animation = "default subtree animation"
+                int blendLayer = 500
+                double duration = 2.099999938160181
+                uniform token info:id = "E7F5AD33-EB07-4CBB-ADFC-6BF8B65CC891"
+                double loopCount = 0
+                bool separateAnimatedValue = 1
+                double startTime = -0.007040334302325582
+                rel target = </Root/Group/Eugene_pickup>
+
+                def RealityKitStruct "handoffType"
+                {
+                }
+            }
+        }
     }
 
-    def Xform "Eugene_anchor_4" (
+    def Xform "Transform" (
         active = true
     )
     {
-        float2 ui:nodegraph:node:pos = (100, 100)
-        int ui:nodegraph:node:stackingOrder = 5
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.14399697, 0, 0.45065874)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
+}
+
+def Xform "Eugene_anchor_1" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (20, 20)
+    int ui:nodegraph:node:stackingOrder = 1
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (-0.27387738, 0, 0.29198855)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+}
+
+def Xform "Eugene_anchor_2" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (40, 40)
+    int ui:nodegraph:node:stackingOrder = 2
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (-0.0799856, 0, 0.29198855)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+}
+
+def Xform "Eugene_anchor_3" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (60, 60)
+    int ui:nodegraph:node:stackingOrder = 3
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (0.14399697, 0, 0.29198855)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+}
+
+def Xform "Eugene_anchor_4" (
+    active = true
+)
+{
+    float2 ui:nodegraph:node:pos = (80, 80)
+    int ui:nodegraph:node:stackingOrder = 4
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    float3 xformOp:translate = (0.14399697, 0, 0.45065874)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 }
 

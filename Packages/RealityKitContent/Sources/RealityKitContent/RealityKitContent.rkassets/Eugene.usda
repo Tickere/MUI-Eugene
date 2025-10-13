@@ -10,7 +10,7 @@
 
 def Xform "Root"
 {
-    reorder nameChildren = ["_13102025_Mascot_Idle_Pickup", "Eugene_walking", "AnimationLibrary", "Eugene_pickup", "Eugene_idle", "Capsule", "eugene_ui_anchor", "idle", "pickup", "Timeline", "RCP_BehaviorsContainer", "OnNotification"]
+    reorder nameChildren = ["Eugene_pickup", "Eugene_idle", "Capsule", "eugene_ui_anchor"]
     def Capsule "Capsule" (
         active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
@@ -54,188 +54,38 @@ def Xform "Root"
     }
 
     def "Eugene_idle" (
-        references = @10102025_Mascot_idle.usdc@
+        active = true
+        prepend references = @Eugene_idle.usdc@
     )
     {
-        quatf xformOp:orient = (4.3297803e-17, 4.3297803e-17, 0.70710677, 0.70710677)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitComponent "AnimationLibrary"
-        {
-            token info:id = "RealityKit.AnimationLibrary"
-
-            def RealityKitAnimationFile "default_subtree_animation"
-            {
-                uniform bool looping = 1
-                uniform string name = "default subtree animation"
-            }
-        }
+        reorder nameChildren = ["Armature_Eugene_002", "_materials", "IdleHappy", "eugene_ui_anchor"]
+        quatf xformOp:orient = (0.70710677, -0.7071067, 0, 0)
+        float3 xformOp:scale = (0.99999994, 0.99999994, 0.99999994)
     }
 
     def "Eugene_pickup" (
-        references = @10102025_Mascot_pickup.usdc@
+        active = true
+        customData = {
+            float3 rotationEulerHint = (-1.570796, 0, 0)
+        }
+        prepend references = @Eugene_pickup.usdc@
     )
     {
-        quatf xformOp:orient = (4.3297803e-17, 4.3297803e-17, 0.70710677, 0.70710677)
+        quatf xformOp:orient = (0.7071069, -0.70710665, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (0, 0, 0)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitComponent "AnimationLibrary"
-        {
-            token info:id = "RealityKit.AnimationLibrary"
-
-            def RealityKitAnimationFile "default_subtree_animation"
-            {
-                uniform bool looping = 1
-                uniform string name = "default subtree animation"
-            }
-        }
     }
 
     def "Eugene_walking" (
-        customData = {
-            float3 rotationEulerHint = (-1.5707955, 3.141592, 0)
-        }
-        references = @10102025_Mascot_walk.usdc@
-    )
-    {
-        quatf xformOp:orient = (1.3767878e-7, -1.3767874e-7, 0.7071069, 0.70710665)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.06739336, 1.9557774e-8, 0.27064484)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitComponent "AnimationLibrary"
-        {
-            token info:id = "RealityKit.AnimationLibrary"
-
-            def RealityKitAnimationFile "default_subtree_animation"
-            {
-                uniform bool looping = 1
-                uniform string name = "default subtree animation"
-            }
-        }
-    }
-
-    def RealityKitComponent "AnimationLibrary"
-    {
-        token info:id = "RealityKit.AnimationLibrary"
-    }
-
-    def RealityKitTimeline "idle"
-    {
-        def RealityKitTrack "Track"
-        {
-            def RealityKitAction "Animation"
-            {
-                string actionKind = "animation"
-                string animation = "default subtree animation"
-                int blendLayer = 500
-                double duration = 2.433333430439234
-                uniform token info:id = "6A6ABE34-6010-416C-9A1C-FC6DAB6712F8"
-                double loopCount = 0
-                bool separateAnimatedValue = 1
-                double startTime = 0
-                rel target = </Root/Eugene_idle>
-
-                def RealityKitStruct "handoffType"
-                {
-                }
-            }
-        }
-    }
-
-    def RealityKitTimeline "pickup"
-    {
-        def RealityKitTrack "Track"
-        {
-            def RealityKitAction "Animation"
-            {
-                string actionKind = "animation"
-                string animation = "default subtree animation"
-                int blendLayer = 500
-                double duration = 2.099999938160181
-                uniform token info:id = "36E80E8A-46C2-4B1F-9084-4EE6D560C88D"
-                double loopCount = 0
-                bool separateAnimatedValue = 1
-                double startTime = 0
-                rel target = </Root/Eugene_pickup>
-
-                def RealityKitStruct "handoffType"
-                {
-                }
-            }
-        }
-    }
-
-    def RealityKitTimeline "Timeline"
-    {
-        def RealityKitTrack "Track"
-        {
-            def RealityKitAction "Animation"
-            {
-                string actionKind = "animation"
-                string animation = "default subtree animation"
-                int blendLayer = 500
-                double duration = 20
-                uniform token info:id = "83045ED1-7CC4-449A-8389-9427CA6E99C7"
-                double loopCount = 0
-                bool separateAnimatedValue = 1
-                double startTime = 0
-                rel target = </Root/Eugene_walking>
-
-                def RealityKitStruct "handoffType"
-                {
-                }
-            }
-        }
-    }
-
-    def RealityKitComponent "RCP_BehaviorsContainer"
-    {
-        rel behaviors = </Root/OnNotification>
-        uniform token info:id = "RCP.BehaviorsContainer"
-    }
-
-    def Preliminary_Behavior "OnNotification"
-    {
-        rel actions = </Root/OnNotification/Action>
-        uniform bool exclusive
-        rel triggers = </Root/OnNotification/Trigger>
-
-        def Preliminary_Trigger "Trigger"
-        {
-            rel affectedObjects = </Root>
-            token info:id = "Notification"
-        }
-
-        def Preliminary_Action "Action"
-        {
-            rel affectedObjects = None
-            rel animationLibraryKeyOverrideKey = </Root/OnNotification/Trigger>
-            token info:id = "PlayTimeline"
-            int loops = 0
-            int performCount = 1
-            token type = "serial"
-        }
-    }
-
-    def "_13102025_Mascot_Idle_Pickup" (
-        active = false
-        prepend references = @13102025_Mascot_Idle_Pickup.usdc@
+        active = true
+        prepend references = @Eugene_walking.usdc@
     )
     {
         quatf xformOp:orient = (4.3297803e-17, 4.3297803e-17, 0.70710677, 0.70710677)
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (0, 0, 0)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def RealityKitComponent "AnimationLibrary"
-        {
-            token info:id = "RealityKit.AnimationLibrary"
-        }
     }
 }
 
