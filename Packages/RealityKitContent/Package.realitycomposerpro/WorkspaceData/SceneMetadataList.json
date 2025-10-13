@@ -24,6 +24,16 @@
     "objectMetadataList" : [
       [
         "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Group",
+        "Eugene_2"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
         "Root"
       ],
       {
@@ -115,6 +125,17 @@
         "Capsule",
         "WalkCTRL_01",
         "Armature_Eugene_001"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Group",
+        "Eugene_2",
+        "Armature_Eugene_002"
       ],
       {
         "isExpanded" : true,

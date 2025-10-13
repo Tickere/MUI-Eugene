@@ -404,6 +404,13 @@ def Xform "Root"
                     uniform string name = "default subtree animation"
                 }
             }
+
+            over "Armature_Eugene_002"
+            {
+                over "B_eyes_square_001"
+                {
+                }
+            }
         }
 
         def "Eugene_pickup" (
@@ -450,6 +457,12 @@ def Xform "Root"
                 }
             }
         }
+    }
+
+    def Xform "Transform" (
+        active = true
+    )
+    {
     }
 }
 

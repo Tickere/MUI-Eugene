@@ -50,35 +50,36 @@ struct ContentView: View {
     @State private var step: Step = .welcome
 
     var body: some View {
-        Group {
-            switch step {
-            case .welcome:
-                VStack(spacing: 24) {
-                    Text("Welcome to Eugene’s Lab")
-                        .font(.largeTitle.bold())
-                    Text("Let’s discover the world of genes together!")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                    Button("Start") {
-                        Task {
-                            _ = await openImmersiveSpace(id: "PlacementSpace")
-                            step = .placing
-                        }
+        switch step {
+        case .welcome:
+            VStack(spacing: 24) {
+                Text("Welcome to Eugene’s Lab")
+                    .font(.largeTitle.bold())
+                Text("Let’s discover the world of genes together!")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                Button("Start") {
+                    Task {
+                        _ = await openImmersiveSpace(id: "PlacementSpace")
+                        step = .placing
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.extraLarge)
                 }
-                .padding(40)
-                .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.extraLarge)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(40)
+            .ignoresSafeArea()
 
-            case .placing:
+        case .placing:
+            ZStack {
+                Color.clear.ignoresSafeArea()
                 Text("Look around and place the laboratory")
                     .font(.title2)
                     .foregroundStyle(.secondary)
-                    .padding(24)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 520, minHeight: 260)
     }
 }
 
@@ -117,7 +118,7 @@ extension ContentView {
         @State private var confirmUI: Entity?
         @State private var infoPanel: Entity?
         @State private var machineUI: Entity?
-        @State private var combineUI: Entity?          // anchored Combine button
+        @State private var combineUI: Entity?
 
         // Info panel state
         @State private var infoTitle: String = ""
@@ -172,18 +173,6 @@ extension ContentView {
         var body: some View {
             RealityView { content, attachments in
                 content.add(root)
-                
-//                if let eugene = try? await Entity.init(named: "Eugene_2", in: realityKitContentBundle) {
-//                if let eugene = root.findEntity(named: "Eugene_2") {
-//                    print("Success ", eugene.availableAnimations)
-//                    eugene.availableAnimations.forEach { animation in
-//                        eugene.playAnimation(animation.repeat())
-//                    }
-//                } else {
-//                    root.children.forEach { child in
-//                        print(child.name)
-//                    }
-//                }
 
                 if confirmUI == nil, let e = attachments.entity(for: "confirmUI") {
                     e.isEnabled = false
