@@ -346,7 +346,9 @@ def Xform "Root"
         }
     }
 
-    def RealityKitComponent "Anchoring"
+    def RealityKitComponent "Anchoring" (
+        active = false
+    )
     {
         uniform token info:id = "RealityKit.Anchoring"
 

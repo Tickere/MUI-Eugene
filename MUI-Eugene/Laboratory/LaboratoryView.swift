@@ -15,7 +15,7 @@ struct LaboratoryView: View {
     @State private var machineRightCollisionEvent: EventSubscription?
     @State private var machineLeftCollisionEvent: EventSubscription?
     
-    let anchoringComponent = AnchoringComponent.init(.plane(.horizontal, classification: .table, minimumBounds: .zero), trackingMode: .once)
+//    let anchoringComponent = AnchoringComponent.init(.plane(.horizontal, classification: .table, minimumBounds: .zero), trackingMode: .once)
         
     var body: some View {
         RealityView { content in
@@ -29,12 +29,44 @@ struct LaboratoryView: View {
                     print(entity.name)
                     if let eugeneComponent = entity.components[EugeneComponent.self] {
                         print("has eugene component")
+                        
+                        if let walkingEugene = entity.findEntity(named: "eugene_walk") {
+                            walkingEugene.isEnabled = false
+                        }
+                        if let pickupEugene = entity.findEntity(named: "eugene_pickup"), let animation = pickupEugene.availableAnimations.first {
+                            pickupEugene.isEnabled = false
+                            pickupEugene.playAnimation(animation.repeat())
+                        }
+                        if let idleEugene = entity.findEntity(named: "eugene_idle"), let animation = idleEugene.availableAnimations.first {
+                            idleEugene.playAnimation(animation.repeat())
+                        }
+                        
                         var manipulationComponent = ManipulationComponent()
                         manipulationComponent.releaseBehavior = .reset
                         entity.components.set(manipulationComponent)
                         
                         let viewAttachmentComponent = ViewAttachmentComponent(rootView: EugeneLabelView(codeTitle: eugeneComponent.code, generation: eugeneComponent.generation))
                         entity.findEntity(named: "eugene_ui_anchor")?.components.set(viewAttachmentComponent)
+                        
+                        _ = content.subscribe(to: ManipulationEvents.WillBegin.self, on: entity, { event in
+                            if let idleEugene = event.entity.findEntity(named: "eugene_idle") {
+                                idleEugene.isEnabled = false
+                            }
+                            
+                            if let pickupEugene = event.entity.findEntity(named: "eugene_pickup") {
+                                pickupEugene.isEnabled = true
+                            }
+                        })
+                        
+                        _ = content.subscribe(to: ManipulationEvents.WillRelease.self, on: entity, { event in
+                            if let idleEugene = event.entity.findEntity(named: "eugene_idle") {
+                                idleEugene.isEnabled = true
+                            }
+                            
+                            if let pickupEugene = event.entity.findEntity(named: "eugene_pickup") {
+                                pickupEugene.isEnabled = false
+                            }
+                        })
                     }
                 }
                 
@@ -57,7 +89,7 @@ struct LaboratoryView: View {
                     })
                 }
                 
-                labEntity.findEntity(named: "Root")?.anchor?.anchoring = anchoringComponent
+//                labEntity.findEntity(named: "Root")?.anchor?.anchoring = anchoringComponent
 
                 appState.laboratoryEntity = labEntity
                 content.add(labEntity)
