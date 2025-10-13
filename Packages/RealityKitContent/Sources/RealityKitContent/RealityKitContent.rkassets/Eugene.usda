@@ -10,7 +10,7 @@
 
 def Xform "Root"
 {
-    reorder nameChildren = ["Eugene_pickup", "Eugene_idle", "Capsule", "eugene_ui_anchor"]
+    reorder nameChildren = ["Eugene_pickup", "Eugene_idle", "Capsule", "eugene_ui_anchor", "idle", "pickup"]
     def Capsule "Capsule" (
         active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
@@ -61,6 +61,11 @@ def Xform "Root"
         reorder nameChildren = ["Armature_Eugene_002", "_materials", "IdleHappy", "eugene_ui_anchor"]
         quatf xformOp:orient = (0.70710677, -0.7071067, 0, 0)
         float3 xformOp:scale = (0.99999994, 0.99999994, 0.99999994)
+
+        def RealityKitComponent "AnimationLibrary"
+        {
+            token info:id = "RealityKit.AnimationLibrary"
+        }
     }
 
     def "Eugene_pickup" (
@@ -75,6 +80,11 @@ def Xform "Root"
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (0, 0, 0)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        def RealityKitComponent "AnimationLibrary"
+        {
+            token info:id = "RealityKit.AnimationLibrary"
+        }
     }
 
     def "Eugene_walking" (
@@ -86,6 +96,58 @@ def Xform "Root"
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (0, 0, 0)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def RealityKitTimeline "idle"
+    {
+        float2 ui:nodegraph:node:pos = (20, 20)
+        int ui:nodegraph:node:stackingOrder = 1
+
+        def RealityKitTrack "Track"
+        {
+            def RealityKitAction "Animation"
+            {
+                string actionKind = "animation"
+                string animation = "default subtree animation"
+                int blendLayer = 500
+                double duration = 2.433333430439234
+                uniform token info:id = "F0FACF2E-B2BF-4C6A-BC21-7D719916DBA9"
+                double loopCount = 0
+                bool separateAnimatedValue = 1
+                double startTime = 0
+                rel target = </Root/Eugene_idle>
+
+                def RealityKitStruct "handoffType"
+                {
+                }
+            }
+        }
+    }
+
+    def RealityKitTimeline "pickup"
+    {
+        float2 ui:nodegraph:node:pos = (20, 20)
+        int ui:nodegraph:node:stackingOrder = 1
+
+        def RealityKitTrack "Track"
+        {
+            def RealityKitAction "Animation"
+            {
+                string actionKind = "animation"
+                string animation = "default subtree animation"
+                int blendLayer = 500
+                double duration = 2.099999938160181
+                uniform token info:id = "E7F5AD33-EB07-4CBB-ADFC-6BF8B65CC891"
+                double loopCount = 0
+                bool separateAnimatedValue = 1
+                double startTime = -0.007040334302325582
+                rel target = </Root/Eugene_pickup>
+
+                def RealityKitStruct "handoffType"
+                {
+                }
+            }
+        }
     }
 }
 
