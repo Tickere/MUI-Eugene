@@ -10,9 +10,9 @@
 
 def Xform "Root"
 {
-    reorder nameChildren = ["Capsule", "Collider", "InputTarget", "eugene_ui_anchor"]
+    reorder nameChildren = ["Eugene_pickup", "Eugene_idle", "Capsule", "eugene_ui_anchor"]
     def Capsule "Capsule" (
-        active = true
+        active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
     )
     {
@@ -51,6 +51,41 @@ def Xform "Root"
             float blendFactor = 0
             uniform token info:id = "RealityKit.Billboard"
         }
+    }
+
+    def "Eugene_idle" (
+        active = true
+        prepend references = @Eugene_idle.usdc@
+    )
+    {
+        reorder nameChildren = ["Armature_Eugene_002", "_materials", "IdleHappy", "eugene_ui_anchor"]
+        quatf xformOp:orient = (0.70710677, -0.7071067, 0, 0)
+        float3 xformOp:scale = (0.99999994, 0.99999994, 0.99999994)
+    }
+
+    def "Eugene_pickup" (
+        active = true
+        customData = {
+            float3 rotationEulerHint = (-1.570796, 0, 0)
+        }
+        prepend references = @Eugene_pickup.usdc@
+    )
+    {
+        quatf xformOp:orient = (0.7071069, -0.70710665, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "Eugene_walking" (
+        active = true
+        prepend references = @Eugene_walking.usdc@
+    )
+    {
+        quatf xformOp:orient = (4.3297803e-17, 4.3297803e-17, 0.70710677, 0.70710677)
+        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }
 

@@ -17,12 +17,12 @@ def Xform "Root"
     def "Eugene_1" (
         active = true
         customData = {
-            float3 rotationEulerHint = (4.7123885, 0, 0)
+            float3 rotationEulerHint = (0, 0, 0)
         }
-        references = @Eugene_walking.usdc@
+        references = @Eugene.usda@
     )
     {
-        quatf xformOp:orient = (0.70710677, -0.70710677, 0, 0)
+        quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
         float3 xformOp:translate = (-0.47876582, 0, 0.31118333)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
