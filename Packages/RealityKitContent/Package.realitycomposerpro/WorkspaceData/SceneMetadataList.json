@@ -1,6 +1,65 @@
 {
+  "0C2C52F4-CD1D-4FC5-95FB-C8498A76660B" : {
+    "objectMetadataList" : [
+      [
+        "0C2C52F4-CD1D-4FC5-95FB-C8498A76660B",
+        "root",
+        "WalkCTRL_01"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0C2C52F4-CD1D-4FC5-95FB-C8498A76660B",
+        "root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
   "0F1A11FA-2FEB-4752-994E-244892BAF738" : {
     "objectMetadataList" : [
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Group"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Timeline",
+        "Track"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Eugene_1",
+        "Capsule",
+        "WalkCTRL_01"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
       [
         "0F1A11FA-2FEB-4752-994E-244892BAF738",
         "Root",
@@ -13,7 +72,8 @@
       },
       [
         "0F1A11FA-2FEB-4752-994E-244892BAF738",
-        "Root"
+        "Root",
+        "idle"
       ],
       {
         "isExpanded" : true,
@@ -23,6 +83,145 @@
         "0F1A11FA-2FEB-4752-994E-244892BAF738",
         "Root",
         "Machine"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "idle",
+        "Track"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "pickup",
+        "Track"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Eugene_1",
+        "Capsule",
+        "WalkCTRL_01",
+        "Armature_Eugene_001"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "Timeline2",
+        "Track"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0F1A11FA-2FEB-4752-994E-244892BAF738",
+        "Root",
+        "pickup"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "322422EF-C2CA-4A28-B06D-1C046DE1759D" : {
+    "objectMetadataList" : [
+      [
+        "322422EF-C2CA-4A28-B06D-1C046DE1759D",
+        "root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "79E6653F-40E0-4D29-A17C-38CB1F5894F8" : {
+    "objectMetadataList" : [
+      [
+        "79E6653F-40E0-4D29-A17C-38CB1F5894F8",
+        "root",
+        "Armature_Eugene_004"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "79E6653F-40E0-4D29-A17C-38CB1F5894F8",
+        "root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "B560479E-005E-45B0-9A73-9EC0E1A016DE" : {
+    "objectMetadataList" : [
+      [
+        "B560479E-005E-45B0-9A73-9EC0E1A016DE",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "C31FCC10-E8A1-4B05-94A6-B59D9401AF00" : {
+    "objectMetadataList" : [
+      [
+        "C31FCC10-E8A1-4B05-94A6-B59D9401AF00",
+        "root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "C4B8FB90-8BE3-4E4F-A4BE-77E6821EF4BE" : {
+    "objectMetadataList" : [
+      [
+        "C4B8FB90-8BE3-4E4F-A4BE-77E6821EF4BE",
+        "root",
+        "WalkCTRL_01",
+        "Armature_Eugene_001"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "C4B8FB90-8BE3-4E4F-A4BE-77E6821EF4BE",
+        "root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "C4B8FB90-8BE3-4E4F-A4BE-77E6821EF4BE",
+        "root",
+        "WalkCTRL_01"
       ],
       {
         "isExpanded" : true,

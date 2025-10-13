@@ -1,3 +1,4 @@
+// ContentView.swift
 import SwiftUI
 import RealityKit
 import RealityKitContent
@@ -7,25 +8,25 @@ import QuartzCore
 import UIKit
 import Foundation
 
-// MARK: - Components
+// MARK: - Components carried on Reality Composer models
 struct Draggable: Component {}
 struct EugeneData: Component, Codable { var code: String; var generation: Int }
 
-// MARK: - Global helpers
+// MARK: - Utility lookups
 func draggableRoot(from e: Entity) -> Entity? {
     var cur: Entity? = e, last: Entity?
-    while let c = cur { if c.components.has(Draggable.self) { last = c }; cur = c.parent }
+    while let c = cur { if c.components.has(Draggable.self) { last = c } ; cur = c.parent }
     return last
 }
 func isDescendant(_ child: Entity, of ancestor: Entity) -> Bool {
     var p: Entity? = child
-    while let n = p { if n === ancestor { return true }; p = n.parent }
+    while let n = p { if n === ancestor { return true } ; p = n.parent }
     return false
 }
 func findEugeneComponent(near e: Entity) -> EugeneComponent? {
     if let c = e.components[EugeneComponent.self] { return c }
     var p = e.parent
-    while let n = p { if let c = n.components[EugeneComponent.self] { return c }; p = n.parent }
+    while let n = p { if let c = n.components[EugeneComponent.self] { return c } ; p = n.parent }
     var q: [(Entity, Int)] = e.children.map { ($0, 1) }
     while let (n, d) = q.first {
         q.removeFirst()
@@ -41,58 +42,43 @@ func parseCodeFromName(_ name: String) -> String? {
     return nil
 }
 
-// MARK: - Trait panel (compact)
-struct EugeneTraitPanel: View {
-    var title: String
-    var traitA: String
-    var traitB: String
-    var traitC: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(.title2, weight: .semibold))
-                .padding(.top, 6)
-            row(icon: "eye.fill", code: traitA)
-            row(icon: "globe.americas.fill", code: traitB)
-            row(icon: "paintpalette.fill", code: traitC)
-        }
-        .padding(16)
-        .frame(width: 260)
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
-    private func row(icon: String, code: String) -> some View {
-        HStack {
-            ZstackIcon(system: icon)
-            Spacer(minLength: 12)
-            Text(code)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .monospaced()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private struct ZstackIcon: View {
-        var system: String
-        var body: some View {
-            ZStack {
-                Circle().fill(.thinMaterial)
-                Image(systemName: system).font(.system(size: 20, weight: .semibold))
-            }
-            .frame(width: 44, height: 44)
-        }
-    }
-}
-
-// MARK: - Entry
+// MARK: - App entry
 struct ContentView: View {
+    enum Step { case welcome, placing }
+
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @State private var step: Step = .welcome
+
     var body: some View {
-        Text("Opening immersive…")
-            .task { _ = await openImmersiveSpace(id: "PlacementSpace") }
+        Group {
+            switch step {
+            case .welcome:
+                VStack(spacing: 24) {
+                    Text("Welcome to Eugene’s Lab")
+                        .font(.largeTitle.bold())
+                    Text("Let’s discover the world of genes together!")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                    Button("Start") {
+                        Task {
+                            _ = await openImmersiveSpace(id: "PlacementSpace")
+                            step = .placing
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.extraLarge)
+                }
+                .padding(40)
+                .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+            case .placing:
+                Text("Look around and place the laboratory")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .padding(24)
+            }
+        }
+        .frame(minWidth: 520, minHeight: 260)
     }
 }
 
@@ -131,6 +117,7 @@ extension ContentView {
         @State private var confirmUI: Entity?
         @State private var infoPanel: Entity?
         @State private var machineUI: Entity?
+        @State private var combineUI: Entity?          // anchored Combine button
 
         // Info panel state
         @State private var infoTitle: String = ""
@@ -139,9 +126,23 @@ extension ContentView {
         @State private var traitC: String = "—"
         @State private var infoTargetName: String?
 
-        // Machine UI text
-        @State private var m1Text: String = "Machine 1: Empty"
-        @State private var m2Text: String = "Machine 2: Empty"
+        // Machine panel alleles (auto-filled)
+        @State private var p1A: String = "—"
+        @State private var p1B: String = "—"
+        @State private var p1C: String = "—"
+        @State private var p2A: String = "—"
+        @State private var p2B: String = "—"
+        @State private var p2C: String = "—"
+
+        // Combine visibility rule
+        private func pairComplete(_ a: String, _ b: String) -> Bool {
+            let A = a.trimmingCharacters(in: .whitespacesAndNewlines)
+            let B = b.trimmingCharacters(in: .whitespacesAndNewlines)
+            return A.count >= 2 && B.count >= 2 && A != "—" && B != "—"
+        }
+        private var showCombine: Bool {
+            pairComplete(p1A, p2A) && pairComplete(p1B, p2B) && pairComplete(p1C, p2C)
+        }
 
         // Lab
         private let labAssetName = "Laboratory"
@@ -160,13 +161,29 @@ extension ContentView {
         @State private var machines: [MachineTarget] = []
         @State private var occupiedByAnchor: [ObjectIdentifier: Entity] = [:]
 
-        // Eugene_3
+        // Eugene_3 handle
         @State private var eugene3: Entity?
-        @State private var canGenerate = false
+
+        // UI tuning
+        private let uiYOffset: Float = 0.03
+        private let machineUILift: Float = 0.22
+        private let combineForward: Float = 0.08
 
         var body: some View {
             RealityView { content, attachments in
                 content.add(root)
+                
+//                if let eugene = try? await Entity.init(named: "Eugene_2", in: realityKitContentBundle) {
+//                if let eugene = root.findEntity(named: "Eugene_2") {
+//                    print("Success ", eugene.availableAnimations)
+//                    eugene.availableAnimations.forEach { animation in
+//                        eugene.playAnimation(animation.repeat())
+//                    }
+//                } else {
+//                    root.children.forEach { child in
+//                        print(child.name)
+//                    }
+//                }
 
                 if confirmUI == nil, let e = attachments.entity(for: "confirmUI") {
                     e.isEnabled = false
@@ -177,7 +194,7 @@ extension ContentView {
                 if infoPanel == nil, let e = attachments.entity(for: "infoPanel") {
                     e.isEnabled = false
                     e.components.set(BillboardComponent())
-                    e.scale = [0.62, 0.62, 0.62] // smaller
+                    e.scale = [0.62, 0.62, 0.62]
                     root.addChild(e)
                     infoPanel = e
                 }
@@ -185,6 +202,12 @@ extension ContentView {
                     e.isEnabled = false
                     root.addChild(e)
                     machineUI = e
+                }
+                if combineUI == nil, let e = attachments.entity(for: "combineUI") {
+                    e.isEnabled = false
+                    e.components.set(BillboardComponent())
+                    root.addChild(e)
+                    combineUI = e
                 }
             } attachments: {
                 Attachment(id: "confirmUI") {
@@ -195,23 +218,24 @@ extension ContentView {
                         .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 Attachment(id: "infoPanel") {
-                    EugeneTraitPanel(title: infoTitle, traitA: traitA, traitB: traitB, traitC: traitC)
+                    EugeneInfoView(title: infoTitle, traitA: traitA, traitB: traitB, traitC: traitC)
                 }
                 Attachment(id: "machineUI") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Machine Panel").font(.headline)
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(m1Text).monospaced()
-                            Text(m2Text).monospaced()
-                        }
-                        .padding(8)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        Button("Generate New Eugene") { spawnEugene3() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!canGenerate)
-                    }
-                    .padding(12)
-                    .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    MachinePunnettPanelFramed(
+                        p1A: p1A, p1B: p1B, p1C: p1C,
+                        p2A: p2A, p2B: p2B, p2C: p2C
+                    )
+                }
+                Attachment(id: "combineUI") {
+                    Button("Combine") { combineParents() }
+                        .font(.title2.weight(.semibold))
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.extraLarge)
+                        .tint(Color.gray.opacity(0.85))
+                        .padding(.horizontal, 40)
+                        .padding(.vertical, 8)
+                        .shadow(radius: 8, y: 4)
                 }
             }
             .task {
@@ -319,7 +343,11 @@ extension ContentView {
                         startPoseRot = nil; startAngleRad = nil
                         isRotatingPlane = false
                         planeDragBlockUntil = CACurrentMediaTime() + 1.0
-                        Task { try? await Task.sleep(nanoseconds: 300_000_000); isManipulatingPlane = false; if let id = activeID { updateConfirmUI(for: id) } }
+                        Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            isManipulatingPlane = false
+                            if let id = activeID { updateConfirmUI(for: id) }
+                        }
                     }
             )
             // Move plane
@@ -349,18 +377,27 @@ extension ContentView {
                         guard !confirmed else { return }
                         if let id = activeID, var item = items[id] { item.locked = true; items[id] = item }
                         isDraggingPlane = false; startPoseMove = nil; lastHitLocal = nil
-                        Task { try? await Task.sleep(nanoseconds: 300_000_000); isManipulatingPlane = false; if let id = activeID { updateConfirmUI(for: id) } }
+                        Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            isManipulatingPlane = false
+                            if let id = activeID { updateConfirmUI(for: id) }
+                        }
                     }
             )
-            // Confirm tap
+            // Tap confirm / combine
             .simultaneousGesture(
-                SpatialTapGesture().targetedToAnyEntity().onEnded { value in
-                    guard !confirmed, let ui = confirmUI, ui.isEnabled, value.entity == ui else { return }
-                    confirmPlacement()
-                }
+                SpatialTapGesture().targetedToAnyEntity()
+                    .onEnded { value in
+                        if let ui = confirmUI, ui.isEnabled, value.entity == ui, !confirmed {
+                            confirmPlacement(); return
+                        }
+                        if let c = combineUI, c.isEnabled, value.entity == c, confirmed {
+                            combineParents(); return
+                        }
+                    }
             )
 
-            // Eugènes drag
+            // Drag Eugenes
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0).targetedToAnyEntity()
                     .onChanged { value in
@@ -435,7 +472,7 @@ extension ContentView {
             )
         }
 
-        // MARK: - Focus / UI helpers
+        // MARK: - Focus / UI
         private func setActive(_ id: UUID) {
             if activeID == id { return }
             if let prev = activeID, let p = items[prev] { p.quad.model?.materials = [baseMat]; p.quad.isEnabled = false }
@@ -468,29 +505,34 @@ extension ContentView {
                 if let lab = try? await Entity(named: labAssetName, in: realityKitContentBundle) {
                     lab.name = "LaboratoryRoot"
                     stripAutoFacingAndAnchoring(in: lab)
-
                     let planeWorld = item.anchor.transformMatrix(relativeTo: nil)
                     lab.setTransformMatrix(planeWorld, relativeTo: nil)
                     root.addChild(lab); labRoot = lab
 
-                    if let anchor = lab.findEntity(named: "machine_ui_anchor"),
-                       let ui = machineUI {
-                        ui.components[BillboardComponent.self] = nil
-                        ui.setParent(anchor); ui.transform = .identity; ui.position.y += 0.02; ui.isEnabled = true
+                    if let anchor = lab.findEntity(named: "machine_ui_anchor") {
+                        if let ui = machineUI {
+                            ui.components[BillboardComponent.self] = nil
+                            ui.setParent(anchor)
+                            ui.transform = .identity
+                            ui.position.y += machineUILift
+                            ui.isEnabled = true
+                        }
+                        if let c = combineUI {
+                            c.setParent(anchor)
+                            c.transform = .identity
+                            c.position = [0, machineUILift - 0.14, combineForward]
+                            c.isEnabled = showCombine
+                        }
                     }
 
                     recordSpawnWorldPoses(for: lab)
                     markEugeneSubtreesDraggable(under: lab)
                     setupMachineTargets()
-                    updateMachineUI()
-
+                    refreshCombinePanel()
                     if let e3node = lab.findEntity(named: "Eugene_3") ?? lab.findEntity(named: "eugene_3") {
                         let root3 = draggableRoot(from: e3node) ?? e3node
                         eugene3 = root3
                         eugene3?.isEnabled = false
-                        canGenerate = true
-                    } else {
-                        canGenerate = false
                     }
                 }
             }
@@ -521,15 +563,19 @@ extension ContentView {
             let k = key(for: mt); if let e = entity { occupiedByAnchor[k] = e } else { occupiedByAnchor.removeValue(forKey: k) }
         }
         private func detachIfAnchored(_ model: Entity) {
+            var changed = false
             for mt in machines {
                 let anchor = mt.anchorEntity ?? mt.collisionEntity
                 if isDescendant(model, of: anchor) {
-                    if let occ = occupant(of: mt), occ === model { setOccupant(of: mt, to: nil) }
+                    if let occ = occupant(of: mt), occ === model {
+                        setOccupant(of: mt, to: nil)
+                        changed = true
+                    }
                     let wt = model.transformMatrix(relativeTo: nil)
                     model.setParent(root); model.setTransformMatrix(wt, relativeTo: nil)
-                    return
                 }
             }
+            if changed { refreshCombinePanel() }
         }
         private func anchorIfColliding(_ model: Entity) -> Bool {
             guard !machines.isEmpty else { return false }
@@ -557,31 +603,39 @@ extension ContentView {
                 await MainActor.run {
                     model.setParent(anchor); model.transform = .identity
                     setOccupant(of: mt, to: model)
-                    updateMachineUI()
+                    refreshCombinePanel()
                     if infoTargetName == model.name { infoPanel?.isEnabled = false; infoTargetName = nil }
                 }
             }
         }
 
-        // MARK: - Generate Eugene_3 at generation_anchor
+        // MARK: - Combine
+        private func combineParents() {
+            spawnEugene3()
+            if machines.indices.contains(0), let e = occupant(of: machines[0]) {
+                returnToOrigin(e); setOccupant(of: machines[0], to: nil)
+            }
+            if machines.indices.contains(1), let e = occupant(of: machines[1]) {
+                returnToOrigin(e); setOccupant(of: machines[1], to: nil)
+            }
+            refreshCombinePanel()
+        }
+
         private func spawnEugene3() {
-            guard confirmed, let lab = labRoot, let e3 = eugene3 else { return }
+            guard let lab = labRoot, let e3 = eugene3 else { return }
             let genAnchor = lab.findEntity(named: "generation_anchor")
                 ?? lab.findEntity(named: "Generation_Anchor")
                 ?? lab
-
             if originalWorld[e3.name] == nil { originalWorld[e3.name] = e3.transformMatrix(relativeTo: nil) }
-
             let worldT = genAnchor.transformMatrix(relativeTo: nil)
             e3.isEnabled = true
             e3.setParent(root)
             e3.setTransformMatrix(worldT, relativeTo: nil)
-
             ensureHittableRecursively(e3)
             ensureEugeneDataIfMissing(on: e3)
         }
 
-        // MARK: - Info / return / cleanup
+        // MARK: - Info / UI updates
         private func genTitle(_ n: Int) -> String {
             switch n { case 1: return "1st Gen"; case 2: return "2nd Gen"; case 3: return "3rd Gen"; default: return "\(n)th Gen" }
         }
@@ -592,65 +646,73 @@ extension ContentView {
             let c = String(s.dropFirst(4).prefix(2))
             return (a.isEmpty ? "—" : a, b.isEmpty ? "—" : b, c.isEmpty ? "—" : c)
         }
-
-        // Per-Eugene UI anchor finder
-        private func eugeneUIAnchor(in root: Entity) -> Entity? {
-            let candidates = ["eugene_ui_anchor", "Eugene_UI_Anchor", "EugeneUiAnchor", "ui_anchor"]
-            for name in candidates { if let e = root.findEntity(named: name) { return e } }
-            return nil
+        @MainActor
+        private func refreshCombinePanel() {
+            if machines.indices.contains(0) {
+                if let occ = occupant(of: machines[0]) {
+                    let (code, _) = codeGen(for: occ)
+                    let (a,b,c) = splitCodeToPairs(code)
+                    p1A = a; p1B = b; p1C = c
+                } else {
+                    p1A = "—"; p1B = "—"; p1C = "—"
+                }
+            }
+            if machines.indices.contains(1) {
+                if let occ = occupant(of: machines[1]) {
+                    let (code, _) = codeGen(for: occ)
+                    let (a,b,c) = splitCodeToPairs(code)
+                    p2A = a; p2B = b; p2C = c
+                } else {
+                    p2A = "—"; p2B = "—"; p2C = "—"
+                }
+            }
+            combineUI?.isEnabled = confirmed && showCombine
         }
-
-        // Center the UI directly above the Eugene root using visual bounds
-        private func placeInfoPanel(near model: Entity) {
-            guard let panel = infoPanel else { return }
-            let rootEugene = draggableRoot(from: model) ?? model
-            let anchor = eugeneUIAnchor(in: rootEugene) ?? rootEugene
-
-            panel.setParent(anchor)
-            panel.transform = .identity
-
-            let vb = rootEugene.visualBounds(relativeTo: anchor)
-            let topY = vb.center.y + vb.extents.y * 0.5
-            panel.position = [0, topY + 0.00, 0] // 6 cm above top center
-        }
-
-        private func returnToOrigin(_ model: Entity) {
-            guard let targetWorld = originalWorld[model.name] else { return }
-            model.move(to: Transform(matrix: targetWorld), relativeTo: nil, duration: 0.35, timingFunction: .easeInOut)
-            if infoTargetName == model.name { placeInfoPanel(near: model) }
-        }
-        private func cleanupDrag() {
-            grabOffsetLocal = nil; dragFrame?.removeFromParent(); dragFrame = nil
-        }
-
-        // UI text helpers
         private func codeGen(for e: Entity) -> (String, Int) {
             if let c = findEugeneComponent(near: e) { return (c.code, c.generation) }
             if let d = e.components[EugeneData.self] { return (d.code, d.generation) }
             return ("—", 0)
         }
-        private func updateMachineUI() {
-            if machines.indices.contains(0) {
-                if let occ = occupant(of: machines[0]) {
-                    let (code, gen) = codeGen(for: occ)
-                    m1Text = "Machine 1: \(code) • Gen \(gen)"
-                } else { m1Text = "Machine 1: Empty" }
-            }
-            if machines.indices.contains(1) {
-                if let occ = occupant(of: machines[1]) {
-                    let (code, gen) = codeGen(for: occ)
-                    m2Text = "Machine 2: \(code) • Gen \(gen)"
-                } else { m2Text = "Machine 2: Empty" }
-            }
+
+        private func placeInfoPanel(near model: Entity) {
+            guard let panel = infoPanel else { return }
+            let rootEugene = draggableRoot(from: model) ?? model
+            let anchor = eugeneUIAnchor(in: rootEugene) ?? rootEugene
+            panel.setParent(anchor)
+            panel.transform = .identity
+            let vb = rootEugene.visualBounds(relativeTo: anchor)
+            let topY = vb.center.y + vb.extents.y * 0.5
+            panel.position = [0, topY + uiYOffset, 0]
         }
 
-        // MARK: - Scene utils
+        // MARK: - Local scene utils
+        private func cleanupDrag() {
+            grabOffsetLocal = nil
+            dragFrame?.removeFromParent()
+            dragFrame = nil
+        }
+        private func returnToOrigin(_ model: Entity) {
+            guard let targetWorld = originalWorld[model.name] else { return }
+            model.move(to: Transform(matrix: targetWorld),
+                       relativeTo: nil,
+                       duration: 0.35,
+                       timingFunction: .easeInOut)
+            if infoTargetName == model.name { placeInfoPanel(near: model) }
+        }
         private func ensureHittableRecursively(_ e: Entity) {
             if let m = e as? ModelEntity {
                 if m.components[CollisionComponent.self] == nil { m.generateCollisionShapes(recursive: false) }
                 m.components.set(InputTargetComponent())
             }
             for c in e.children { ensureHittableRecursively(c) }
+        }
+        private func ensureEugeneDataIfMissing(on e: Entity) {
+            if e.components.has(EugeneData.self) { return }
+            let code = findEugeneComponent(near: e)?.code
+                ?? parseCodeFromName(e.name)
+                ?? "AaBbCc"
+            let gen  = findEugeneComponent(near: e)?.generation ?? 0
+            e.components.set(EugeneData(code: code, generation: gen))
         }
         private func stripAutoFacingAndAnchoring(in root: Entity) {
             root.components[BillboardComponent.self] = nil
@@ -682,12 +744,6 @@ extension ContentView {
                 for c in e.children { dfs(c) }
             }
             dfs(root)
-        }
-        private func ensureEugeneDataIfMissing(on e: Entity) {
-            if e.components.has(EugeneData.self) { return }
-            let code = findEugeneComponent(near: e)?.code ?? parseCodeFromName(e.name) ?? "AaBbCc"
-            let gen  = findEugeneComponent(near: e)?.generation ?? 0
-            e.components.set(EugeneData(code: code, generation: gen))
         }
         private func markEugeneSubtreesDraggable(under root: Entity) {
             var eugeneRoots: [Entity] = []
@@ -727,6 +783,11 @@ extension ContentView {
                 let l = e.name.lowercased(); if tokens.contains(where: { l.contains($0) }) { return e }
                 stack.append(contentsOf: e.children)
             }
+            return nil
+        }
+        private func eugeneUIAnchor(in root: Entity) -> Entity? {
+            let candidates = ["eugene_ui_anchor", "Eugene_UI_Anchor", "EugeneUiAnchor", "ui_anchor"]
+            for name in candidates { if let e = root.findEntity(named: name) { return e } }
             return nil
         }
         private func overlaps(amin: SIMD3<Float>, amax: SIMD3<Float>, bmin: SIMD3<Float>, bmax: SIMD3<Float>) -> Bool {

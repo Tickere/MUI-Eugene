@@ -1,13 +1,25 @@
 {
   "pathsToIds" : {
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/10102025_Mascot_walk.usdc" : "096B0713-2AB7-49C7-87AA-CEF3CB5AF6DF",
     "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene.usd" : "BC56AE7A-0A32-40D1-B028-0A72E2885253",
     "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene.usda" : "B560479E-005E-45B0-9A73-9EC0E1A016DE",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene_2.usd" : "322422EF-C2CA-4A28-B06D-1C046DE1759D",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene_3.usdc" : "0C2C52F4-CD1D-4FC5-95FB-C8498A76660B",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene_idle.usdc" : "C31FCC10-E8A1-4B05-94A6-B59D9401AF00",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene_pickup.usdc" : "79E6653F-40E0-4D29-A17C-38CB1F5894F8",
+    "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Eugene_walking.usdc" : "C4B8FB90-8BE3-4E4F-A4BE-77E6821EF4BE",
     "RealityKitContent\/Sources\/RealityKitContent\/RealityKitContent.rkassets\/Laboratory.usda" : "0F1A11FA-2FEB-4752-994E-244892BAF738"
   },
   "projectID" : -2261019585485587526,
   "uuidToIntID" : {
+    "096B0713-2AB7-49C7-87AA-CEF3CB5AF6DF" : 784891875024195111,
+    "0C2C52F4-CD1D-4FC5-95FB-C8498A76660B" : -8656292160061989118,
     "0F1A11FA-2FEB-4752-994E-244892BAF738" : -8463279484186294823,
+    "322422EF-C2CA-4A28-B06D-1C046DE1759D" : -6351496268277199811,
+    "79E6653F-40E0-4D29-A17C-38CB1F5894F8" : -1665500625002538787,
     "B560479E-005E-45B0-9A73-9EC0E1A016DE" : 9173441943121514917,
-    "BC56AE7A-0A32-40D1-B028-0A72E2885253" : -7226488981228465689
+    "BC56AE7A-0A32-40D1-B028-0A72E2885253" : -7226488981228465689,
+    "C31FCC10-E8A1-4B05-94A6-B59D9401AF00" : -4653236606871054941,
+    "C4B8FB90-8BE3-4E4F-A4BE-77E6821EF4BE" : 6207162974748154607
   }
 }
