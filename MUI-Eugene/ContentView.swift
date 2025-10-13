@@ -145,8 +145,21 @@ extension ContentView {
             pairComplete(p1A, p2A) && pairComplete(p1B, p2B) && pairComplete(p1C, p2C)
         }
 
+        // Lab loader: support renamed assets
+        private let labNameCandidates = [
+            "Laboratory", "Lab", "EugeneLab", "Eugene_Lab", "LabScene", "Scene"
+        ]
+        private func loadLab() async -> Entity? {
+            for n in labNameCandidates {
+                if let e = try? await Entity(named: n, in: realityKitContentBundle) { return e }
+            }
+            for n in labNameCandidates {
+                if let e = try? await Entity(named: n) { return e }
+            }
+            return nil
+        }
+
         // Lab
-        private let labAssetName = "Laboratory"
         @State private var labRoot: Entity?
         @State private var previewLab: Entity?
 
@@ -235,7 +248,7 @@ extension ContentView {
 
                 // Hologram preview (hide Eugene_3)
                 Task {
-                    if let ghost = try? await Entity(named: labAssetName, in: realityKitContentBundle) {
+                    if let ghost = await loadLab() {
                         ghost.name = "PreviewLab"
                         stripAutoFacingAndAnchoring(in: ghost)
                         disableInteraction(for: ghost)
@@ -491,7 +504,7 @@ extension ContentView {
             previewLab?.removeFromParent(); previewLab = nil
 
             Task {
-                if let lab = try? await Entity(named: labAssetName, in: realityKitContentBundle) {
+                if let lab = await loadLab() {
                     lab.name = "LaboratoryRoot"
                     stripAutoFacingAndAnchoring(in: lab)
                     let planeWorld = item.anchor.transformMatrix(relativeTo: nil)

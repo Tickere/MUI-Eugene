@@ -73,16 +73,6 @@
       [
         "0F1A11FA-2FEB-4752-994E-244892BAF738",
         "Root",
-        "Eugene_1",
-        "eugene_idle"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "0F1A11FA-2FEB-4752-994E-244892BAF738",
-        "Root",
         "idle",
         "Track"
       ],
@@ -170,7 +160,26 @@
     "objectMetadataList" : [
       [
         "B560479E-005E-45B0-9A73-9EC0E1A016DE",
+        "Root",
+        "idle"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "B560479E-005E-45B0-9A73-9EC0E1A016DE",
         "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "B560479E-005E-45B0-9A73-9EC0E1A016DE",
+        "Root",
+        "idle",
+        "Track"
       ],
       {
         "isExpanded" : true,
