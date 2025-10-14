@@ -125,7 +125,7 @@ def Xform "Root"
             def RealityKitComponent "HierarchicalFade"
             {
                 uniform token info:id = "RealityKit.HierarchicalFade"
-                float opacity = 0
+                float opacity = 0.23809028
             }
 
             def RealityKitComponent "Collider"
@@ -176,7 +176,7 @@ def Xform "Root"
             def RealityKitComponent "HierarchicalFade"
             {
                 uniform token info:id = "RealityKit.HierarchicalFade"
-                float opacity = 0
+                float opacity = 0.26086804
             }
 
             def RealityKitComponent "InputTarget"
